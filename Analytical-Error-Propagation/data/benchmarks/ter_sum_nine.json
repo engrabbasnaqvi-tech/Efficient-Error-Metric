@@ -1,0 +1,25 @@
+{
+  "inputs": ["in0", "in1", "in2", "in3", "in4", "in5", "in6", "in7", "in8"],
+  "input_ranges": {
+  "in0": [0, 8191],
+  "in1": [0, 8191],
+  "in2": [0, 8191],
+  "in3": [0, 8191],
+  "in4": [0, 8191],
+  "in5": [0, 8191],
+  "in6": [0, 8191],
+  "in7": [0, 8191],
+  "in8": [0, 8191]
+},
+  "nodes": [
+    {"id": "adder_0", "op": "add", "inputs": ["in0", "in1"], "output": "t1"},
+    {"id": "adder_1", "op": "add", "inputs": ["in2", "in3"], "output": "t2"},
+    {"id": "adder_2", "op": "add", "inputs": ["in4", "in5"], "output": "t3"},
+    {"id": "adder_3", "op": "add", "inputs": ["in6", "in7"], "output": "t4"},
+    {"id": "adder_4", "op": "add", "inputs": ["t1", "t2"], "output": "t5"},
+    {"id": "adder_5", "op": "add", "inputs": ["t3", "t4"], "output": "t6"},
+    {"id": "adder_6", "op": "add", "inputs": ["t5", "t6"], "output": "t7"},
+    {"id": "adder_7", "op": "add", "inputs": ["t7", "in8"], "output": "out"}
+  ],
+  "output": "out"
+}

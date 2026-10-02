@@ -1,0 +1,59 @@
+{
+ "benchmark": "ter_sum_nine",
+ "samples": 200000,
+ "seed": 42,
+ "m_out": 73719.0,
+ "configs": [
+  {
+   "name": "C1",
+   "codes": {
+    "adder_0": 7,
+    "adder_1": 7,
+    "adder_2": 2,
+    "adder_3": 5,
+    "adder_4": 2,
+    "adder_5": 6,
+    "adder_6": 4,
+    "adder_7": 7
+   },
+   "me": -1.234145,
+   "mse": 281466.064115,
+   "rms_pct": 0.719670307495656,
+   "seconds": 0.04593868600204587
+  },
+  {
+   "name": "C2",
+   "codes": {
+    "adder_0": 8,
+    "adder_1": 5,
+    "adder_2": 7,
+    "adder_3": 6,
+    "adder_4": 7,
+    "adder_5": 0,
+    "adder_6": 5,
+    "adder_7": 4
+   },
+   "me": -214.271625,
+   "mse": 2181802.019715,
+   "rms_pct": 2.003679405369134,
+   "seconds": 0.04184829501900822
+  },
+  {
+   "name": "C3",
+   "codes": {
+    "adder_0": 0,
+    "adder_1": 0,
+    "adder_2": 2,
+    "adder_3": 0,
+    "adder_4": 4,
+    "adder_5": 0,
+    "adder_6": 0,
+    "adder_7": 9
+   },
+   "me": -1.791215,
+   "mse": 29883112.599755,
+   "rms_pct": 7.4153811775069665,
+   "seconds": 0.025867448071949184
+  }
+ ]
+}

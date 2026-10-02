@@ -1,0 +1,33 @@
+{
+  "inputs": ["in0", "in1", "in2", "in3", "in4", "in5", "in6", "in7", "in8",
+             "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"],
+    "input_ranges": {
+    "in0": [0, 255], "in1": [0, 255], "in2": [0, 255],
+    "in3": [0, 255], "in4": [0, 255], "in5": [0, 255],
+    "in6": [0, 255], "in7": [0, 255], "in8": [0, 255],
+    "c0": [7, 7], "c1": [17, 17], "c2": [32, 32],
+    "c3": [46, 46], "c4": [52, 52], "c5": [46, 46],
+    "c6": [32, 32], "c7": [17, 17], "c8": [7, 7]
+  },
+  "nodes": [
+    {"id": "mult_0", "op": "mul", "inputs": ["in0", "c0"], "output": "t1"},
+    {"id": "mult_1", "op": "mul", "inputs": ["in1", "c1"], "output": "t2"},
+    {"id": "mult_2", "op": "mul", "inputs": ["in2", "c2"], "output": "t3"},
+    {"id": "mult_3", "op": "mul", "inputs": ["in3", "c3"], "output": "t4"},
+    {"id": "mult_4", "op": "mul", "inputs": ["in4", "c4"], "output": "t5"},
+    {"id": "mult_5", "op": "mul", "inputs": ["in5", "c5"], "output": "t6"},
+    {"id": "mult_6", "op": "mul", "inputs": ["in6", "c6"], "output": "t7"},
+    {"id": "mult_7", "op": "mul", "inputs": ["in7", "c7"], "output": "t8"},
+    {"id": "mult_8", "op": "mul", "inputs": ["in8", "c8"], "output": "t9"},
+
+    {"id": "adder_0", "op": "add", "inputs": ["t1", "t2"], "output": "t10"},
+    {"id": "adder_1", "op": "add", "inputs": ["t3", "t4"], "output": "t11"},
+    {"id": "adder_2", "op": "add", "inputs": ["t5", "t6"], "output": "t12"},
+    {"id": "adder_3", "op": "add", "inputs": ["t7", "t8"], "output": "t13"},
+    {"id": "adder_4", "op": "add", "inputs": ["t10", "t11"], "output": "t14"},
+    {"id": "adder_5", "op": "add", "inputs": ["t12", "t13"], "output": "t15"},
+    {"id": "adder_6", "op": "add", "inputs": ["t14", "t15"], "output": "t16"},
+    {"id": "adder_7", "op": "add", "inputs": ["t16", "t9"], "output": "out"}
+  ],
+  "output": "out"
+}
