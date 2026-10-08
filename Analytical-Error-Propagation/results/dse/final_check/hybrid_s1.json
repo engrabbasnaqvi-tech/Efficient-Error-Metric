@@ -1,0 +1,205 @@
+{
+ "benchmark": "fir",
+ "args": {
+  "benchmark": "fir",
+  "mode": "hybrid",
+  "cap": 5.0,
+  "budget": 1000,
+  "analytical_budget": 1000,
+  "margin": 1.0,
+  "start": "root",
+  "samples": 1000000,
+  "depth": 2,
+  "seed": 1,
+  "out": "results/dse/final_check/hybrid_s1.json",
+  "quiet": true,
+  "synth": true,
+  "netlist": "original",
+  "max_delay": null
+ },
+ "start": {
+  "mult_0": 11,
+  "mult_1": 11,
+  "mult_2": 11,
+  "mult_3": 11,
+  "mult_4": 11,
+  "mult_5": 11,
+  "mult_6": 11,
+  "mult_7": 11,
+  "mult_8": 11,
+  "adder_0": 0,
+  "adder_1": 0,
+  "adder_2": 0,
+  "adder_3": 0,
+  "adder_4": 0,
+  "adder_5": 0,
+  "adder_6": 0,
+  "adder_7": 0
+ },
+ "phases": {
+  "analytical": {
+   "codes": {
+    "mult_0": 14,
+    "mult_1": 14,
+    "mult_2": 13,
+    "mult_3": 14,
+    "mult_4": 14,
+    "mult_5": 15,
+    "mult_6": 13,
+    "mult_7": 14,
+    "mult_8": 21,
+    "adder_0": 6,
+    "adder_1": 5,
+    "adder_2": 3,
+    "adder_3": 8,
+    "adder_4": 7,
+    "adder_5": 8,
+    "adder_6": 4,
+    "adder_7": 7
+   },
+   "rms": 3.7295057451343787,
+   "area": 3055.267406,
+   "path": "mult_3=mul16u_5FA, mult_7=mul16u_5FA, adder_5=add16u_0GK, mult_2=mul16u_AQ1, adder_3=add16u_0GK, adder_1=add16u_073, adder_2=add16u_0EM, mult_6=mul16u_AQ1, adder_7=add16u_0DL, adder_4=add16u_0DL, mult_0=mul16u_5FA, mult_8=mul16u_HGY, mult_1=mul16u_5FA, mult_5=mul16u_DAE, adder_6=add16u_0Q7, adder_0=add16u_0M0, mult_4=mul16u_5FA",
+   "base_area": 6975.717304000001,
+   "iterations": 1001,
+   "expanded": 832,
+   "evaluator": "analytical",
+   "cap": 4.0,
+   "budget": 1000,
+   "seconds": 0.04463846003636718,
+   "evaluations": 748,
+   "cache_hits": 84,
+   "eval_seconds": 0.029495854047127068,
+   "search_seconds": 0.01514260598924011,
+   "saving_pct": 56.20138728603501,
+   "sim_rms": 3.741959224610629
+  },
+  "simulation": {
+   "codes": {
+    "mult_0": 21,
+    "mult_1": 14,
+    "mult_2": 13,
+    "mult_3": 14,
+    "mult_4": 14,
+    "mult_5": 15,
+    "mult_6": 15,
+    "mult_7": 14,
+    "mult_8": 21,
+    "adder_0": 2,
+    "adder_1": 5,
+    "adder_2": 3,
+    "adder_3": 8,
+    "adder_4": 7,
+    "adder_5": 8,
+    "adder_6": 4,
+    "adder_7": 7
+   },
+   "rms": 4.481335201430638,
+   "area": 2639.516913,
+   "path": "mult_6=mul16u_DAE, mult_2=mul16u_AQ1, adder_0=add16u_0AV, mult_0=mul16u_HGY",
+   "base_area": 3055.267406,
+   "iterations": 1001,
+   "expanded": 857,
+   "evaluator": "simulation",
+   "cap": 5.0,
+   "budget": 1000,
+   "seconds": 319.80976163293235,
+   "evaluations": 777,
+   "cache_hits": 80,
+   "eval_seconds": 319.73284977686126,
+   "search_seconds": 0.07691185607109219,
+   "saving_pct": 62.1613549120396
+  }
+ },
+ "final": {
+  "codes": {
+   "mult_0": 21,
+   "mult_1": 14,
+   "mult_2": 13,
+   "mult_3": 14,
+   "mult_4": 14,
+   "mult_5": 15,
+   "mult_6": 15,
+   "mult_7": 14,
+   "mult_8": 21,
+   "adder_0": 2,
+   "adder_1": 5,
+   "adder_2": 3,
+   "adder_3": 8,
+   "adder_4": 7,
+   "adder_5": 8,
+   "adder_6": 4,
+   "adder_7": 7
+  },
+  "sim_rms": 4.481335201430638,
+  "area": 2639.516913,
+  "exact_area": 6975.717304000001,
+  "saving_pct": 62.1613549120396,
+  "model_rms": 4.4662245393695965,
+  "model_inaccuracy_pct": 0.33719106877382254
+ },
+ "synthesis": {
+  "exact": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_hybrid_exact",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 7485.26651,
+   "cell_area": 3935.909984,
+   "slack": 0.06,
+   "dynamic_mw": 6.1568,
+   "leakage_mw": 0.0008116267999999999,
+   "total_mw": 6.1576,
+   "seconds": 22.69485382596031
+  },
+  "final": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_hybrid_final",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 3033.358055,
+   "cell_area": 1646.039997,
+   "slack": 0.04,
+   "dynamic_mw": 3.6424,
+   "leakage_mw": 0.0004090642,
+   "total_mw": 3.6428,
+   "seconds": 7.717064085998572
+  },
+  "netlist": "original",
+  "constraint": {
+   "clock": "clk",
+   "clock_period": 0.2
+  },
+  "area_reduction_pct": 59.47561718814471,
+  "power_reduction_pct": 40.84058724178252
+ },
+ "timing": {
+  "setup": 0.04007713682949543,
+  "analytical search": 0.04463846003636718,
+  "handoff check": 0.5243546679848805,
+  "simulation search": 319.80976163293235,
+  "final simulation": 0.4743010560050607,
+  "synthesis": 22.70091102097649,
+  "total": 343.6126537419623
+ },
+ "evaluations": {
+  "simulation": {
+   "calls": 779,
+   "cache_hits": 80,
+   "seconds": 320.73149668076076,
+   "mean_seconds": 0.41172207532831934
+  },
+  "analytical": {
+   "calls": 750,
+   "cache_hits": 84,
+   "seconds": 0.029686151072382927,
+   "mean_seconds": 3.9581534763177234e-05
+  }
+ }
+}

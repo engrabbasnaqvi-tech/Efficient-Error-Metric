@@ -1,3 +1,11 @@
+"""
+Node and feeder tables: each unit's own error measured on the operands that reach every node,
+and, for adders, behind every pair of units that can feed it.
+
+    python3 -m characterization.characterize <benchmark> [samples]
+
+Writes data/node_metrics/<benchmark>.json and data/node_metrics/<benchmark>_feeder.json.
+"""
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor

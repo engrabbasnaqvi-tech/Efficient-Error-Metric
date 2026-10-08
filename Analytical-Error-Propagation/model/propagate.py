@@ -133,6 +133,24 @@ def _adder_output_state_feeder(
     }
 
 
+def history_index(port, codes):
+    """Row of a depth-2 table: the units of the port's history as a mixed-radix number."""
+    index = 0
+    for node_id, choices in port["dims"]:
+        index = index * len(choices) + choices.index(codes[node_id])
+    return index
+
+
+def deep_entry(deep_lib, node_id, codes):
+    """[E[Δr], E[Δr²], E[d·Δr], E[d]] of `node_id` from the depth-2 table, or None."""
+    meta, tables = deep_lib
+    node = meta["nodes"].get(node_id)
+    if node is None or codes[node_id] not in node["own"]:
+        return None
+    ia, ib = (history_index(port, codes) for port in node["ports"])
+    return [float(v) for v in tables[node_id][node["own"].index(codes[node_id]), ia, ib]]
+
+
 def _node_output_state(op, ws_a, ws_b, me_r, mse_r):
     if op == "mul":
         return _multiplier_output_state(ws_a, ws_b, me_r, mse_r)
@@ -148,13 +166,15 @@ def propagate_circuit_scalar(
     wire_max: Optional[Dict[str, float]] = None,
     node_lib: Optional[Dict] = None,
     feeder_lib: Optional[Dict] = None,
+    deep_lib: Optional[Tuple[Dict, Dict]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Propagate {me, mse, ex, ex2} from the inputs to every wire.
 
     Own error of a node, in order of preference:
-      feeder_lib[node]["code|feeder_a|feeder_b"]   adders, from characterize.py
-      node_lib[node][code]                         from characterize.py
+      deep_lib (meta, tables)                      adders, depth-2 history (characterize_deep)
+      feeder_lib[node]["code|feeder_a|feeder_b"]   adders (characterize)
+      node_lib[node][code]                         (characterize)
       range-bucketed libraries
     """
     if wire_max is None:
@@ -168,6 +188,12 @@ def propagate_circuit_scalar(
         ws_a, ws_b = wire_states[wire_a], wire_states[wire_b]
         code = codes[node.id]
         made_by[node.output] = str(code)
+
+        if deep_lib and node.op == "add" and code != 0:
+            entry = deep_entry(deep_lib, node.id, codes)
+            if entry is not None:
+                wire_states[node.output] = _adder_output_state_feeder(ws_a, ws_b, entry)
+                continue
 
         if feeder_lib and node.op == "add" and code != 0:
             entry = feeder_lib.get(node.id, {}).get(f"{code}|{made_by[wire_a]}|{made_by[wire_b]}")

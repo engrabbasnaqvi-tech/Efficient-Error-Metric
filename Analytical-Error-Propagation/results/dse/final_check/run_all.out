@@ -1,0 +1,721 @@
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : analytical   (analytical model only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 0
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 170.2 µs
+  analytical tables            : 5.2 ms
+  simulation inputs            : 33.9 ms
+  start configuration          : 77.5 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/4  Analytical search
+  evaluator    : analytical   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 3.712 % (analytical)   library area 3454.7 (50.5 % saved)
+     1001 iterations, 730 evaluations, 76 cache hits   41.6 ms (evaluation 27.7 
+ms, mean 38.0 µs · tree search 13.9 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 3.681 % on 1,000,000 samples   cap 5.0 %   within cap   461.8 ms
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.02 s  
+  final        3872.1      2060.3   4.1219 mW   0.04 ns   11.28 s  
+                                                                   
+  area reduction  : 48.3 %
+  power reduction : 33.1 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   5.00 %      1001       730    3.712 %    3454.7   50.5 %   41.6 ms  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.4 ms     0.2 %  
+  analytical search    41.6 ms     0.2 %  
+  final simulation    461.8 ms     2.0 %  
+  synthesis            23.02 s    97.7 %  
+                                          
+  total                23.57 s   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation       1            0     461.7 ms        461.7 ms  
+  analytical     731           77      27.8 ms         38.0 µs  
+                                                                
+analytical evaluation is 12,147× faster than simulation (38.0 µs over 731 calls 
+vs 461.7 ms over 1)
+
+final RMS (simulated)  : 3.681 %   cap 5.0 %   within cap
+final RMS (analytical) : 3.712 %   inaccuracy 0.84 %
+area (DC)              : 3872.1 of 7485.3   reduction 48.3 %
+power (DC)             : 4.1219 of 6.1576 mW   reduction 33.1 %
+approximated units     : 15 of 17
+mult_1=mul16u_AQ1, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_4=mul16u_AQ1, 
+mult_5=mul16u_AQ1, mult_6=mul16u_DAE, mult_7=mul16u_DAE, mult_8=mul16u_HGY, 
+adder_0=add16u_0GK, adder_1=add16u_0EM, adder_2=add16u_0GK, adder_3=add16u_0Q7, 
+adder_4=add16u_073, adder_6=add16u_0M0, adder_7=add16u_0AV
+
+total time : 23.57 s
+
+result JSON  : results/dse/final_check/analytical_s0.json
+terminal log : results/dse/final_check/analytical_s0.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : sim   (simulation only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 0
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 168.5 µs
+  analytical tables            : 5.8 ms
+  simulation inputs            : 36.4 ms
+  start configuration          : 36.8 ms   library area 6975.7 of 6975.7, 
+simulation RMS 0.000 %
+
+Stage 2/4  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 3.681 % (simulation)   library area 3454.7 (50.5 % saved)
+     1001 iterations, 735 evaluations, 78 cache hits   4.0 min (evaluation 4.0 
+min, mean 325.6 ms · tree search 70.4 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 3.681 % on 1,000,000 samples   cap 5.0 %   within cap   402.7 ms
+(same as during the search)
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.34 s  
+  final        3872.1      2060.3   4.1219 mW   0.04 ns   11.51 s  
+                                                                   
+  area reduction  : 48.3 %
+  power reduction : 33.1 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simula…   5.00 %      1001       735    3.681 %    3454.7   50.5 %   4.0 min  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                79.1 ms     0.0 %  
+  simulation search    4.0 min    90.9 %  
+  final simulation    402.7 ms     0.2 %  
+  synthesis            23.35 s     8.9 %  
+                                          
+  total                4.4 min   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation     737           78      4.0 min        325.3 ms  
+  analytical       0            0       0.0 µs               -  
+                                                                
+
+final RMS (simulated)  : 3.681 %   cap 5.0 %   within cap
+area (DC)              : 3872.1 of 7485.3   reduction 48.3 %
+power (DC)             : 4.1219 of 6.1576 mW   reduction 33.1 %
+approximated units     : 15 of 17
+mult_1=mul16u_AQ1, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_4=mul16u_AQ1, 
+mult_5=mul16u_AQ1, mult_6=mul16u_DAE, mult_7=mul16u_DAE, mult_8=mul16u_HGY, 
+adder_0=add16u_0GK, adder_1=add16u_0EM, adder_2=add16u_0GK, adder_3=add16u_0Q7, 
+adder_4=add16u_073, adder_6=add16u_0M0, adder_7=add16u_0AV
+
+total time : 4.4 min
+
+result JSON  : results/dse/final_check/sim_s0.json
+terminal log : results/dse/final_check/sim_s0.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : hybrid   (analytical search, then simulation)
+  cap          : 5.0 %   margin 1.0 %  ->  analytical cap 4 %
+  budget       : 1000 analytical + 1000 simulation iterations
+  start        : root   seed 0
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/6  Setup
+  load benchmark and libraries : 170.6 µs
+  analytical tables            : 5.3 ms
+  simulation inputs            : 34.4 ms
+  start configuration          : 76.1 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/6  Analytical search
+  evaluator    : analytical   cap 4.000 %   budget 1000 iterations
+
+  -> best RMS 2.966 % (analytical)   library area 3192.4 (54.2 % saved)
+     1001 iterations, 635 evaluations, 68 cache hits   37.6 ms (evaluation 25.6 
+ms, mean 40.3 µs · tree search 12.0 ms)
+
+Stage 3/6  Handoff check
+  analytical 2.966 %  ->  simulated 2.958 %   (model overestimates by 0.008 
+points)   520.0 ms
+
+Stage 4/6  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 2.958 % (simulation)   library area 3190.4 (54.3 % saved)
+     1001 iterations, 673 evaluations, 59 cache hits   4.1 min (evaluation 4.1 
+min, mean 368.3 ms · tree search 62.7 ms)
+
+Stage 5/6  Final simulation
+  simulated RMS 2.958 % on 1,000,000 samples   cap 5.0 %   within cap   458.2 ms
+(same as during the search)
+
+Stage 6/6  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.45 s  
+  final        3621.1      1940.5   3.7294 mW   0.04 ns    9.27 s  
+                                                                   
+  area reduction  : 51.6 %
+  power reduction : 39.4 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   4.00 %      1001       635    2.966 %    3192.4   54.2 %   37.6 ms  
+  simula…   5.00 %      1001       673    2.958 %    3190.4   54.3 %   4.1 min  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.9 ms     0.0 %  
+  analytical search    37.6 ms     0.0 %  
+  handoff check       520.0 ms     0.2 %  
+  simulation search    4.1 min    91.0 %  
+  final simulation    458.2 ms     0.2 %  
+  synthesis            23.47 s     8.6 %  
+                                          
+  total                4.5 min   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation     675           59      4.1 min        368.7 ms  
+  analytical     637           68      25.8 ms         40.5 µs  
+                                                                
+analytical evaluation is 9,102× faster than simulation (40.5 µs over 637 calls 
+vs 368.7 ms over 675)
+
+final RMS (simulated)  : 2.958 %   cap 5.0 %   within cap
+final RMS (analytical) : 2.968 %   inaccuracy 0.34 %
+area (DC)              : 3621.1 of 7485.3   reduction 51.6 %
+power (DC)             : 3.7294 of 6.1576 mW   reduction 39.4 %
+approximated units     : 17 of 17
+mult_0=mul16u_8VH, mult_1=mul16u_AQ1, mult_2=mul16u_DAE, mult_3=mul16u_AQ1, 
+mult_4=mul16u_5FA, mult_5=mul16u_5FA, mult_6=mul16u_DAE, mult_7=mul16u_DAE, 
+mult_8=mul16u_DAE, adder_0=add16u_0GK, adder_1=add16u_0M0, adder_2=add16u_0M0, 
+adder_3=add16u_073, adder_4=add16u_0GK, adder_5=add16u_0AV, adder_6=add16u_0EM, 
+adder_7=add16u_0DL
+
+total time : 4.5 min
+
+result JSON  : results/dse/final_check/hybrid_s0.json
+terminal log : results/dse/final_check/hybrid_s0.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : analytical   (analytical model only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 1
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 166.1 µs
+  analytical tables            : 5.3 ms
+  simulation inputs            : 34.3 ms
+  start configuration          : 78.3 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/4  Analytical search
+  evaluator    : analytical   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 4.338 % (analytical)   library area 2800.6 (59.9 % saved)
+     1001 iterations, 728 evaluations, 80 cache hits   44.2 ms (evaluation 29.5 
+ms, mean 40.5 µs · tree search 14.7 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 4.324 % on 1,000,000 samples   cap 5.0 %   within cap   541.6 ms
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.15 s  
+  final        3211.3      1728.0   3.7155 mW   0.04 ns    9.07 s  
+                                                                   
+  area reduction  : 57.1 %
+  power reduction : 39.7 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   5.00 %      1001       728    4.338 %    2800.6   59.9 %   44.2 ms  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.8 ms     0.2 %  
+  analytical search    44.2 ms     0.2 %  
+  final simulation    541.6 ms     2.3 %  
+  synthesis            23.17 s    97.3 %  
+                                          
+  total                23.80 s   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation       1            0     541.6 ms        541.6 ms  
+  analytical     729           81      29.6 ms         40.6 µs  
+                                                                
+analytical evaluation is 13,349× faster than simulation (40.6 µs over 729 calls 
+vs 541.6 ms over 1)
+
+final RMS (simulated)  : 4.324 %   cap 5.0 %   within cap
+final RMS (analytical) : 4.338 %   inaccuracy 0.33 %
+area (DC)              : 3211.3 of 7485.3   reduction 57.1 %
+power (DC)             : 3.7155 of 6.1576 mW   reduction 39.7 %
+approximated units     : 17 of 17
+mult_0=mul16u_GPF, mult_1=mul16u_AQ1, mult_2=mul16u_AQ1, mult_3=mul16u_5FA, 
+mult_4=mul16u_5FA, mult_5=mul16u_AQ1, mult_6=mul16u_DAE, mult_7=mul16u_5FA, 
+mult_8=mul16u_HGY, adder_0=add16u_0EM, adder_1=add16u_073, adder_2=add16u_0DL, 
+adder_3=add16u_0GK, adder_4=add16u_0DL, adder_5=add16u_0GK, adder_6=add16u_0EM, 
+adder_7=add16u_0EM
+
+total time : 23.80 s
+
+result JSON  : results/dse/final_check/analytical_s1.json
+terminal log : results/dse/final_check/analytical_s1.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : sim   (simulation only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 1
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 178.1 µs
+  analytical tables            : 6.1 ms
+  simulation inputs            : 35.8 ms
+  start configuration          : 38.8 ms   library area 6975.7 of 6975.7, 
+simulation RMS 0.000 %
+
+Stage 2/4  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 4.324 % (simulation)   library area 2800.6 (59.9 % saved)
+     1001 iterations, 728 evaluations, 80 cache hits   4.7 min (evaluation 4.7 
+min, mean 389.3 ms · tree search 68.2 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 4.324 % on 1,000,000 samples   cap 5.0 %   within cap   467.5 ms
+(same as during the search)
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.38 s  
+  final        3211.3      1728.0   3.7155 mW   0.04 ns    8.96 s  
+                                                                   
+  area reduction  : 57.1 %
+  power reduction : 39.7 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simula…   5.00 %      1001       728    4.324 %    2800.6   59.9 %   4.7 min  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                80.9 ms     0.0 %  
+  simulation search    4.7 min    92.2 %  
+  final simulation    467.5 ms     0.2 %  
+  synthesis            23.40 s     7.6 %  
+                                          
+  total                5.1 min   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation     730           80      4.7 min        388.9 ms  
+  analytical       0            0       0.0 µs               -  
+                                                                
+
+final RMS (simulated)  : 4.324 %   cap 5.0 %   within cap
+area (DC)              : 3211.3 of 7485.3   reduction 57.1 %
+power (DC)             : 3.7155 of 6.1576 mW   reduction 39.7 %
+approximated units     : 17 of 17
+mult_0=mul16u_GPF, mult_1=mul16u_AQ1, mult_2=mul16u_AQ1, mult_3=mul16u_5FA, 
+mult_4=mul16u_5FA, mult_5=mul16u_AQ1, mult_6=mul16u_DAE, mult_7=mul16u_5FA, 
+mult_8=mul16u_HGY, adder_0=add16u_0EM, adder_1=add16u_073, adder_2=add16u_0DL, 
+adder_3=add16u_0GK, adder_4=add16u_0DL, adder_5=add16u_0GK, adder_6=add16u_0EM, 
+adder_7=add16u_0EM
+
+total time : 5.1 min
+
+result JSON  : results/dse/final_check/sim_s1.json
+terminal log : results/dse/final_check/sim_s1.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : hybrid   (analytical search, then simulation)
+  cap          : 5.0 %   margin 1.0 %  ->  analytical cap 4 %
+  budget       : 1000 analytical + 1000 simulation iterations
+  start        : root   seed 1
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/6  Setup
+  load benchmark and libraries : 174.3 µs
+  analytical tables            : 5.3 ms
+  simulation inputs            : 34.5 ms
+  start configuration          : 76.1 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/6  Analytical search
+  evaluator    : analytical   cap 4.000 %   budget 1000 iterations
+
+  -> best RMS 3.730 % (analytical)   library area 3055.3 (56.2 % saved)
+     1001 iterations, 748 evaluations, 84 cache hits   44.6 ms (evaluation 29.5 
+ms, mean 39.4 µs · tree search 15.1 ms)
+
+Stage 3/6  Handoff check
+  analytical 3.730 %  ->  simulated 3.742 %   (model underestimates by 0.012 
+points)   524.4 ms
+
+Stage 4/6  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 4.481 % (simulation)   library area 2639.5 (62.2 % saved)
+     1001 iterations, 777 evaluations, 80 cache hits   5.3 min (evaluation 5.3 
+min, mean 411.5 ms · tree search 76.9 ms)
+
+Stage 5/6  Final simulation
+  simulated RMS 4.481 % on 1,000,000 samples   cap 5.0 %   within cap   474.3 ms
+(same as during the search)
+
+Stage 6/6  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   22.69 s  
+  final        3033.4      1646.0   3.6428 mW   0.04 ns    7.72 s  
+                                                                   
+  area reduction  : 59.5 %
+  power reduction : 40.8 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   4.00 %      1001       748    3.730 %    3055.3   56.2 %   44.6 ms  
+  simula…   5.00 %      1001       777    4.481 %    2639.5   62.2 %   5.3 min  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                40.1 ms     0.0 %  
+  analytical search    44.6 ms     0.0 %  
+  handoff check       524.4 ms     0.2 %  
+  simulation search    5.3 min    93.1 %  
+  final simulation    474.3 ms     0.1 %  
+  synthesis            22.70 s     6.6 %  
+                                          
+  total                5.7 min   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation     779           80      5.3 min        411.7 ms  
+  analytical     750           84      29.7 ms         39.6 µs  
+                                                                
+analytical evaluation is 10,402× faster than simulation (39.6 µs over 750 calls 
+vs 411.7 ms over 779)
+
+final RMS (simulated)  : 4.481 %   cap 5.0 %   within cap
+final RMS (analytical) : 4.466 %   inaccuracy 0.34 %
+area (DC)              : 3033.4 of 7485.3   reduction 59.5 %
+power (DC)             : 3.6428 of 6.1576 mW   reduction 40.8 %
+approximated units     : 17 of 17
+mult_0=mul16u_HGY, mult_1=mul16u_5FA, mult_2=mul16u_AQ1, mult_3=mul16u_5FA, 
+mult_4=mul16u_5FA, mult_5=mul16u_DAE, mult_6=mul16u_DAE, mult_7=mul16u_5FA, 
+mult_8=mul16u_HGY, adder_0=add16u_0AV, adder_1=add16u_073, adder_2=add16u_0EM, 
+adder_3=add16u_0GK, adder_4=add16u_0DL, adder_5=add16u_0GK, adder_6=add16u_0Q7, 
+adder_7=add16u_0DL
+
+total time : 5.7 min
+
+result JSON  : results/dse/final_check/hybrid_s1.json
+terminal log : results/dse/final_check/hybrid_s1.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : analytical   (analytical model only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 2
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 170.7 µs
+  analytical tables            : 5.2 ms
+  simulation inputs            : 34.2 ms
+  start configuration          : 79.4 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/4  Analytical search
+  evaluator    : analytical   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 4.788 % (analytical)   library area 3788.8 (45.7 % saved)
+     1001 iterations, 617 evaluations, 74 cache hits   35.4 ms (evaluation 22.7 
+ms, mean 36.7 µs · tree search 12.7 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 4.797 % on 1,000,000 samples   cap 5.0 %   within cap   370.2 ms
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   22.81 s  
+  final        4207.4      2248.4   4.2688 mW   0.06 ns   12.50 s  
+                                                                   
+  area reduction  : 43.8 %
+  power reduction : 30.7 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   5.00 %      1001       617    4.788 %    3788.8   45.7 %   35.4 ms  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.7 ms     0.2 %  
+  analytical search    35.4 ms     0.2 %  
+  final simulation    370.2 ms     1.6 %  
+  synthesis            22.82 s    98.1 %  
+                                          
+  total                23.27 s   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation       1            0     370.2 ms        370.2 ms  
+  analytical     618           75      22.7 ms         36.8 µs  
+                                                                
+analytical evaluation is 10,061× faster than simulation (36.8 µs over 618 calls 
+vs 370.2 ms over 1)
+
+final RMS (simulated)  : 4.797 %   cap 5.0 %   within cap
+final RMS (analytical) : 4.788 %   inaccuracy 0.18 %
+area (DC)              : 4207.4 of 7485.3   reduction 43.8 %
+power (DC)             : 4.2688 of 6.1576 mW   reduction 30.7 %
+approximated units     : 12 of 17
+mult_1=mul16u_5FA, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_5=mul16u_DAE, 
+mult_7=mul16u_HGY, mult_8=mul16u_HGY, adder_0=add16u_073, adder_1=add16u_073, 
+adder_2=add16u_0Q7, adder_3=add16u_0M0, adder_4=add16u_0Q7, adder_5=add16u_073
+
+total time : 23.27 s
+
+result JSON  : results/dse/final_check/analytical_s2.json
+terminal log : results/dse/final_check/analytical_s2.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : sim   (simulation only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 2
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 178.6 µs
+  analytical tables            : 5.3 ms
+  simulation inputs            : 34.4 ms
+  start configuration          : 36.9 ms   library area 6975.7 of 6975.7, 
+simulation RMS 0.000 %
+
+Stage 2/4  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations
+
+  -> best RMS 4.759 % (simulation)   library area 3782.2 (45.8 % saved)
+     1001 iterations, 631 evaluations, 77 cache hits   3.2 min (evaluation 3.2 
+min, mean 300.4 ms · tree search 62.3 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 4.759 % on 1,000,000 samples   cap 5.0 %   within cap   321.2 ms
+(same as during the search)
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.27 s  
+  final        4200.9      2244.5   4.2093 mW   0.06 ns   12.81 s  
+                                                                   
+  area reduction  : 43.9 %
+  power reduction : 31.6 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simula…   5.00 %      1001       631    4.759 %    3782.2   45.8 %   3.2 min  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                76.8 ms     0.0 %  
+  simulation search    3.2 min    88.9 %  
+  final simulation    321.2 ms     0.2 %  
+  synthesis            23.28 s    10.9 %  
+                                          
+  total                3.6 min   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation     633           77      3.2 min        300.0 ms  
+  analytical       0            0       0.0 µs               -  
+                                                                
+
+final RMS (simulated)  : 4.759 %   cap 5.0 %   within cap
+area (DC)              : 4200.9 of 7485.3   reduction 43.9 %
+power (DC)             : 4.2093 of 6.1576 mW   reduction 31.6 %
+approximated units     : 12 of 17
+mult_1=mul16u_5FA, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_5=mul16u_DAE, 
+mult_7=mul16u_HGY, mult_8=mul16u_HGY, adder_0=add16u_0M0, adder_1=add16u_073, 
+adder_2=add16u_0DL, adder_3=add16u_073, adder_4=add16u_0Q7, adder_5=add16u_0M0
+
+total time : 3.6 min
+
+result JSON  : results/dse/final_check/sim_s2.json
+terminal log : results/dse/final_check/sim_s2.log
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : hybrid   (analytical search, then simulation)
+  cap          : 5.0 %   margin 1.0 %  ->  analytical cap 4 %
+  budget       : 1000 analytical + 1000 simulation iterations
+  start        : root   seed 2
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/6  Setup
+  load benchmark and libraries : 173.4 µs
+  analytical tables            : 5.3 ms
+  simulation inputs            : 34.4 ms
+  start configuration          : 80.0 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/6  Analytical search
+  evaluator    : analytical   cap 4.000 %   budget 1000 iterations
+
+  -> best RMS 2.856 % (analytical)   library area 3754.5 (46.2 % saved)
+     1001 iterations, 731 evaluations, 98 cache hits   43.7 ms (evaluation 27.8 
+ms, mean 38.0 µs · tree search 15.9 ms)
+
+Stage 3/6  Handoff check
+  analytical 2.856 %  ->  simulated 2.850 %   (model overestimates by 0.006 
+points)   405.2 ms
+
+Stage 4/6  Simulation search
+  evaluator    : simulation   cap 5.000 %   budget 1000 iterations

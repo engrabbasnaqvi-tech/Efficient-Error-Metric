@@ -2,7 +2,7 @@
 Depth-2 feeder table: each adder's own error measured for every unit on the node,
 every unit on its feeders and every unit one level further upstream.
 
-    python3 characterize_deep.py <benchmark> [--workers N] [--samples N] [--check N]
+    python3 -m characterization.characterize_deep <benchmark> [--workers N] [--samples N] [--check N]
 
 Writes data/node_metrics/<benchmark>_d2/: meta.json and one <node>.npy per adder,
 shape (own unit, history a, history b, 4) with [E[dr], E[dr^2], E[d*dr], E[d]].
@@ -25,6 +25,7 @@ from multiprocessing import Pool
 import numpy as np
 
 from model.data import DATA, load_benchmark
+from model.propagate import history_index
 from sim.simulate import EXACT, UNITS, run_unit, sample_inputs
 
 SEED = 1
@@ -176,13 +177,6 @@ def prepare(benchmark, n):
         np.lib.format.open_memmap(out_dir / f"{node.id}_done.npy", mode="w+", dtype=bool, shape=(size[0],))[:] = False
     meta_path.write_text(json.dumps(meta, indent=1))
     return dfg, meta, meta_path, work_dir
-
-
-def history_index(port, codes):
-    index = 0
-    for node_id, choices in port["dims"]:
-        index = index * len(choices) + choices.index(codes[node_id])
-    return index
 
 
 def lookup(meta, tables, node_id, codes):

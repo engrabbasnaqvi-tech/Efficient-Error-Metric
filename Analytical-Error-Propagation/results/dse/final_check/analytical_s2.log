@@ -1,0 +1,81 @@
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : analytical   (analytical model only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 2
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 170.7 µs
+  analytical tables            : 5.2 ms
+  simulation inputs            : 34.2 ms
+  start configuration          : 79.4 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/4  Analytical search
+  evaluator    : analytical   cap 5.000 %   budget 1000 iterations
+  -> best RMS 4.788 % (analytical)   library area 3788.8 (45.7 % saved)
+     1001 iterations, 617 evaluations, 74 cache hits   35.4 ms (evaluation 22.7 
+ms, mean 36.7 µs · tree search 12.7 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 4.797 % on 1,000,000 samples   cap 5.0 %   within cap   370.2 ms
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   22.81 s  
+  final        4207.4      2248.4   4.2688 mW   0.06 ns   12.50 s  
+                                                                   
+  area reduction  : 43.8 %
+  power reduction : 30.7 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   5.00 %      1001       617    4.788 %    3788.8   45.7 %   35.4 ms  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.7 ms     0.2 %  
+  analytical search    35.4 ms     0.2 %  
+  final simulation    370.2 ms     1.6 %  
+  synthesis            22.82 s    98.1 %  
+                                          
+  total                23.27 s   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation       1            0     370.2 ms        370.2 ms  
+  analytical     618           75      22.7 ms         36.8 µs  
+                                                                
+analytical evaluation is 10,061× faster than simulation (36.8 µs over 618 calls 
+vs 370.2 ms over 1)
+
+final RMS (simulated)  : 4.797 %   cap 5.0 %   within cap
+final RMS (analytical) : 4.788 %   inaccuracy 0.18 %
+area (DC)              : 4207.4 of 7485.3   reduction 43.8 %
+power (DC)             : 4.2688 of 6.1576 mW   reduction 30.7 %
+approximated units     : 12 of 17
+mult_1=mul16u_5FA, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_5=mul16u_DAE, 
+mult_7=mul16u_HGY, mult_8=mul16u_HGY, adder_0=add16u_073, adder_1=add16u_073, 
+adder_2=add16u_0Q7, adder_3=add16u_0M0, adder_4=add16u_0Q7, adder_5=add16u_073
+
+total time : 23.27 s
+
+result JSON  : results/dse/final_check/analytical_s2.json
+terminal log : results/dse/final_check/analytical_s2.log

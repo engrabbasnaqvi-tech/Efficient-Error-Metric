@@ -1,0 +1,164 @@
+{
+ "benchmark": "fir",
+ "args": {
+  "benchmark": "fir",
+  "mode": "sim",
+  "cap": 5.0,
+  "budget": 1000,
+  "analytical_budget": 2000,
+  "margin": 1.0,
+  "start": "root",
+  "samples": 1000000,
+  "depth": 2,
+  "seed": 2,
+  "out": "results/dse/final_check/sim_s2.json",
+  "quiet": true,
+  "synth": true,
+  "netlist": "original",
+  "max_delay": null
+ },
+ "start": {
+  "mult_0": 11,
+  "mult_1": 11,
+  "mult_2": 11,
+  "mult_3": 11,
+  "mult_4": 11,
+  "mult_5": 11,
+  "mult_6": 11,
+  "mult_7": 11,
+  "mult_8": 11,
+  "adder_0": 0,
+  "adder_1": 0,
+  "adder_2": 0,
+  "adder_3": 0,
+  "adder_4": 0,
+  "adder_5": 0,
+  "adder_6": 0,
+  "adder_7": 0
+ },
+ "phases": {
+  "simulation": {
+   "codes": {
+    "mult_0": 11,
+    "mult_1": 14,
+    "mult_2": 14,
+    "mult_3": 15,
+    "mult_4": 11,
+    "mult_5": 15,
+    "mult_6": 11,
+    "mult_7": 21,
+    "mult_8": 21,
+    "adder_0": 6,
+    "adder_1": 5,
+    "adder_2": 7,
+    "adder_3": 5,
+    "adder_4": 4,
+    "adder_5": 6,
+    "adder_6": 0,
+    "adder_7": 0
+   },
+   "rms": 4.7591695024996685,
+   "area": 3782.2232320000003,
+   "path": "mult_1=mul16u_5FA, adder_1=add16u_073, mult_8=mul16u_HGY, mult_0=exact, adder_6=exact, adder_7=exact, mult_4=exact, mult_5=mul16u_DAE, mult_6=exact, adder_4=add16u_0Q7, mult_2=mul16u_5FA, mult_3=mul16u_DAE, adder_2=add16u_0DL, adder_3=add16u_073, mult_7=mul16u_HGY, adder_5=add16u_0M0, adder_0=add16u_0M0",
+   "base_area": 6975.717304000001,
+   "iterations": 1001,
+   "expanded": 708,
+   "evaluator": "simulation",
+   "cap": 5.0,
+   "budget": 1000,
+   "seconds": 189.62509279605,
+   "evaluations": 631,
+   "cache_hits": 77,
+   "eval_seconds": 189.56274909921922,
+   "search_seconds": 0.062343696830794215,
+   "saving_pct": 45.780153249169
+  }
+ },
+ "final": {
+  "codes": {
+   "mult_0": 11,
+   "mult_1": 14,
+   "mult_2": 14,
+   "mult_3": 15,
+   "mult_4": 11,
+   "mult_5": 15,
+   "mult_6": 11,
+   "mult_7": 21,
+   "mult_8": 21,
+   "adder_0": 6,
+   "adder_1": 5,
+   "adder_2": 7,
+   "adder_3": 5,
+   "adder_4": 4,
+   "adder_5": 6,
+   "adder_6": 0,
+   "adder_7": 0
+  },
+  "sim_rms": 4.7591695024996685,
+  "area": 3782.2232320000003,
+  "exact_area": 6975.717304000001,
+  "saving_pct": 45.780153249169
+ },
+ "synthesis": {
+  "exact": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_sim_exact",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 7485.26651,
+   "cell_area": 3935.909984,
+   "slack": 0.06,
+   "dynamic_mw": 6.1568,
+   "leakage_mw": 0.0008116267999999999,
+   "total_mw": 6.1576,
+   "seconds": 23.270302579039708
+  },
+  "final": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_sim_final",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 4200.866949,
+   "cell_area": 2244.461994,
+   "slack": 0.06,
+   "dynamic_mw": 4.2088,
+   "leakage_mw": 0.000514946,
+   "total_mw": 4.2093,
+   "seconds": 12.808517465018667
+  },
+  "netlist": "original",
+  "constraint": {
+   "clock": "clk",
+   "clock_period": 0.2
+  },
+  "area_reduction_pct": 43.878191332428585,
+  "power_reduction_pct": 31.640574249707687
+ },
+ "timing": {
+  "setup": 0.07683457515668124,
+  "simulation search": 189.62509279605,
+  "final simulation": 0.321231635985896,
+  "synthesis": 23.27620967605617,
+  "total": 213.30679221102037
+ },
+ "evaluations": {
+  "simulation": {
+   "calls": 633,
+   "cache_hits": 77,
+   "seconds": 189.92091051617172,
+   "mean_seconds": 0.3000330339907926
+  },
+  "analytical": {
+   "calls": 0,
+   "cache_hits": 0,
+   "seconds": 0.0,
+   "mean_seconds": null
+  }
+ }
+}

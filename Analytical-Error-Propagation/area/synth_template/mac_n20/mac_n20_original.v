@@ -1,0 +1,92 @@
+//Top level module for mac, N=20
+module mac_n20 (x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, result);
+input [31:0] x0;
+input [31:0] x1;
+input [31:0] x2;
+input [31:0] x3;
+input [31:0] x4;
+input [31:0] x5;
+input [31:0] x6;
+input [31:0] x7;
+input [31:0] x8;
+input [31:0] x9;
+input [31:0] x10;
+input [31:0] x11;
+input [31:0] x12;
+input [31:0] x13;
+input [31:0] x14;
+input [31:0] x15;
+input [31:0] x16;
+input [31:0] x17;
+input [31:0] x18;
+input [31:0] x19;
+output [31:0] result;
+
+parameter W_0 = 32'd7;
+parameter W_1 = 32'd18;
+parameter W_2 = 32'd13;
+parameter W_3 = 32'd16;
+parameter W_4 = 32'd32;
+parameter W_5 = 32'd22;
+parameter W_6 = 32'd4;
+parameter W_7 = 32'd7;
+parameter W_8 = 32'd2;
+parameter W_9 = 32'd15;
+parameter W_10 = 32'd16;
+parameter W_11 = 32'd14;
+parameter W_12 = 32'd3;
+parameter W_13 = 32'd19;
+parameter W_14 = 32'd9;
+parameter W_15 = 32'd15;
+parameter W_16 = 32'd8;
+parameter W_17 = 32'd17;
+parameter W_18 = 32'd16;
+parameter W_19 = 32'd3;
+
+wire [31:0] prod [0:19];
+wire [31:0] sum [0:18];
+
+adder_16bit component_01(prod[0], prod[1], sum[0]);
+adder_16bit component_02(prod[2], prod[3], sum[1]);
+adder_16bit component_03(prod[4], prod[5], sum[2]);
+adder_16bit component_04(prod[6], prod[7], sum[3]);
+adder_16bit component_05(prod[8], prod[9], sum[4]);
+adder_16bit component_06(prod[10], prod[11], sum[5]);
+adder_16bit component_07(prod[12], prod[13], sum[6]);
+adder_16bit component_08(prod[14], prod[15], sum[7]);
+adder_16bit component_09(prod[16], prod[17], sum[8]);
+adder_16bit component_10(prod[18], prod[19], sum[9]);
+adder_16bit component_11(sum[0], sum[1], sum[10]);
+adder_16bit component_12(sum[2], sum[3], sum[11]);
+adder_16bit component_13(sum[4], sum[5], sum[12]);
+adder_16bit component_14(sum[6], sum[7], sum[13]);
+adder_16bit component_15(sum[8], sum[9], sum[14]);
+adder_16bit component_16(sum[10], sum[11], sum[15]);
+adder_16bit component_17(sum[12], sum[13], sum[16]);
+adder_16bit component_18(sum[15], sum[16], sum[17]);
+adder_16bit component_19(sum[17], sum[14], sum[18]);
+
+mul16u_exact component_20(x0, W_0, prod[0]);
+mul16u_exact component_21(x1, W_1, prod[1]);
+mul16u_exact component_22(x2, W_2, prod[2]);
+mul16u_exact component_23(x3, W_3, prod[3]);
+mul16u_exact component_24(x4, W_4, prod[4]);
+mul16u_exact component_25(x5, W_5, prod[5]);
+mul16u_exact component_26(x6, W_6, prod[6]);
+mul16u_exact component_27(x7, W_7, prod[7]);
+mul16u_exact component_28(x8, W_8, prod[8]);
+mul16u_exact component_29(x9, W_9, prod[9]);
+mul16u_exact component_30(x10, W_10, prod[10]);
+mul16u_exact component_31(x11, W_11, prod[11]);
+mul16u_exact component_32(x12, W_12, prod[12]);
+mul16u_exact component_33(x13, W_13, prod[13]);
+mul16u_exact component_34(x14, W_14, prod[14]);
+mul16u_exact component_35(x15, W_15, prod[15]);
+mul16u_exact component_36(x16, W_16, prod[16]);
+mul16u_exact component_37(x17, W_17, prod[17]);
+mul16u_exact component_38(x18, W_18, prod[18]);
+mul16u_exact component_39(x19, W_19, prod[19]);
+
+assign result = sum[18];
+
+endmodule

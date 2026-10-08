@@ -1,0 +1,23 @@
+{
+  "inputs": [
+    "in0", "in1", "in2", "in3", "in4", "c0", "c1", "c2",
+    "c3", "c4"
+  ],
+  "input_ranges": {
+    "in0": [0, 255], "in1": [0, 255], "in2": [0, 255], "in3": [0, 255],
+    "in4": [0, 255], "c0": [18, 18], "c1": [53, 53], "c2": [39, 39],
+    "c3": [49, 49], "c4": [97, 97]
+  },
+  "nodes": [
+    {"id": "mult_0", "op": "mul", "inputs": ["in0", "c0"], "output": "t0"},
+    {"id": "mult_1", "op": "mul", "inputs": ["in1", "c1"], "output": "t1"},
+    {"id": "mult_2", "op": "mul", "inputs": ["in2", "c2"], "output": "t2"},
+    {"id": "mult_3", "op": "mul", "inputs": ["in3", "c3"], "output": "t3"},
+    {"id": "mult_4", "op": "mul", "inputs": ["in4", "c4"], "output": "t4"},
+    {"id": "adder_0", "op": "add", "inputs": ["t0", "t1"], "output": "sum_0"},
+    {"id": "adder_1", "op": "add", "inputs": ["t2", "t3"], "output": "sum_1"},
+    {"id": "adder_2", "op": "add", "inputs": ["sum_0", "sum_1"], "output": "sum_2"},
+    {"id": "adder_3", "op": "add", "inputs": ["sum_2", "t4"], "output": "out"}
+  ],
+  "output": "out"
+}

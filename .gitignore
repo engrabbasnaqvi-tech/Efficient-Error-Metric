@@ -1,3 +1,7 @@
 Analytical-Error-Propagation/**/__pycache__/
 Analytical-Error-Propagation/sim/bin/
 Analytical-Error-Propagation/data/node_metrics/*_d2/
+Analytical-Error-Propagation/area/runs/
+Analytical-Error-Propagation/area/*.sif
+Analytical-Error-Propagation/area/synth_template/*/LIB/
+Analytical-Error-Propagation/data/configs/configs/

@@ -1,16 +1,13 @@
 """
 Random configurations and their simulated ground truth.
 
-    python3 generate.py <benchmark> [configs] [samples]
-    python3 generate.py --fixed <file> [samples]
-
-Draws random configurations until each RMS band between LOW and HIGH percent
-holds one, simulates them with sim/bin and writes data/ground_truth/<benchmark>.json.
-With --fixed, simulates the configurations listed in <file> instead and writes
-data/ground_truth/<file name>.json.
+    python3 -m validation.generate <benchmark> [configs] [samples]
+    python3 -m validation.generate --fixed <file or folder> [samples]
 """
+import ast
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -19,19 +16,18 @@ import numpy as np
 
 from model.data import DATA, load_benchmark, read_json
 from model.propagate import compute_wire_max
-from sim.simulate import EXACT, UNITS, sample_inputs, simulate
+from sim.simulate import EXACT, SEED_INPUTS, UNITS, random_config, sample_inputs, simulate
 
 LOW, HIGH = 0.5, 10.0
 MAX_DRAWS = 2000
-SEED_CONFIGS, SEED_INPUTS = 7, 42
+SEED_CONFIGS = 7
 
-
-def random_config(dfg, rng):
-    density = rng.uniform(0.1, 0.9)
-    return {
-        node.id: int(rng.choice(UNITS[node.op])) if rng.random() < density else EXACT[node.op]
-        for node in dfg.nodes
-    }
+DEEPAPPROX_LINES = {
+    **{63 + i: f"mult_{i}" for i in range(9)},
+    **{85 + i: f"adder_{i}" for i in range(4)},
+    **{91 + i: f"adder_{4 + i}" for i in range(4)},
+}
+EXACT_UNITS = {"mul16u_BMC"}
 
 
 def ground_truth(dfg, codes, inputs, m_out):
@@ -69,6 +65,27 @@ def fixed_configs(dfg, inputs, m_out, listed):
     return [{"name": name, **ground_truth(dfg, codes, inputs, m_out)} for name, codes in listed.items()]
 
 
+def deepapprox_configs(folder, dfg):
+    codes_by_name = {e["name"]: int(code) for code, e in read_json(DATA / "final_library.json").items()}
+    ops = {node.id: node.op for node in dfg.nodes}
+    files = sorted(folder.glob("*.txt"), key=lambda f: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", f.stem)])
+    if not files:
+        sys.exit(f"no .txt configurations in {folder}")
+    configs = {}
+    for f in files:
+        codes = {node_id: EXACT[op] for node_id, op in ops.items()}
+        for line, unit in ast.literal_eval(f.read_text()).items():
+            node_id, unit = DEEPAPPROX_LINES.get(line), unit.split("-")[-1]
+            if node_id is None or unit not in codes_by_name:
+                sys.exit(f"{f.name}: unknown line {line} or unit {unit}")
+            code = EXACT[ops[node_id]] if unit in EXACT_UNITS else codes_by_name[unit]
+            if code != EXACT[ops[node_id]] and code not in UNITS[ops[node_id]]:
+                sys.exit(f"{f.name}: unit {unit} does not fit {node_id}")
+            codes[node_id] = code
+        configs[f.stem] = codes
+    return configs
+
+
 def main():
     args = sys.argv[1:]
     fixed = None
@@ -79,7 +96,11 @@ def main():
     elif not args:
         sys.exit(__doc__)
 
-    if fixed:
+    if fixed and fixed.is_dir():
+        benchmark, name = "fir", f"fir_{fixed.name}"
+        spec = {"configs": deepapprox_configs(fixed, load_benchmark(benchmark))}
+        n = int(args[0]) if args else 200_000
+    elif fixed:
         spec = read_json(fixed)
         benchmark, name = spec["benchmark"], fixed.stem
         n = int(args[0]) if args else 200_000
@@ -100,8 +121,11 @@ def main():
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps({"benchmark": benchmark, "samples": n, "seed": SEED_INPUTS,
                                "m_out": m_out, "configs": configs}, indent=1))
-    for c in configs:
+    for c in configs if len(configs) <= 20 else []:
         print(f"{name} {c['name']}: RMS {c['rms_pct']:.3f} %")
+    if len(configs) > 20:
+        rms = sorted(c["rms_pct"] for c in configs)
+        print(f"{name}: {len(configs)} configurations, RMS {rms[0]:.3f} to {rms[-1]:.3f} %, median {rms[len(rms) // 2]:.3f} %")
     print(f"written to {out.relative_to(DATA.parent)}")
 
 

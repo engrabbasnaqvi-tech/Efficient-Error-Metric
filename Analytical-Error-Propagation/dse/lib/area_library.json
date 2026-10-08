@@ -1,0 +1,26 @@
+{
+  "components": {
+    "adder_16bit": {"op": "add", "area": 40.487504, "exact": true},
+    "add16u_0AV":  {"op": "add", "area": 15.636156, "exact": false},
+    "add16u_0EM":  {"op": "add", "area": 13.581016, "exact": false},
+    "add16u_0Q7":  {"op": "add", "area": 11.589135, "exact": false},
+    "add16u_073":  {"op": "add", "area": 10.047853, "exact": false},
+    "add16u_0M0":  {"op": "add", "area": 8.450292,  "exact": false},
+    "add16u_0DL":  {"op": "add", "area": 6.573431,  "exact": false},
+    "add16u_0GK":  {"op": "add", "area": 4.677059,  "exact": false},
+    "add16u_02E":  {"op": "add", "area": 2.927754,  "exact": false},
+    "add16u_0MH":  {"op": "add", "area": 1.620775,  "exact": false},
+
+    "mul16u_exact": {"op": "mul", "area": 739.090808, "exact": true},
+    "mul16u_BMC":   {"op": "mul", "area": 392.163103, "exact": false},
+    "mul16u_AQ1":   {"op": "mul", "area": 402.337839, "exact": false},
+    "mul16u_5FA":   {"op": "mul", "area": 367.503495, "exact": false},
+    "mul16u_DAE":   {"op": "mul", "area": 342.504777, "exact": false},
+    "mul16u_F6B":   {"op": "mul", "area": 314.472899, "exact": false},
+    "mul16u_CK3":   {"op": "mul", "area": 270.780483, "exact": false},
+    "mul16u_8VH":   {"op": "mul", "area": 208.558956, "exact": false},
+    "mul16u_GPF":   {"op": "mul", "area": 70.910298,  "exact": false},
+    "mul16u_HGP":   {"op": "mul", "area": 26.066994,  "exact": false},
+    "mul16u_HGY":   {"op": "mul", "area": 4.4002,     "exact": false}
+  }
+}

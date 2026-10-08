@@ -1,0 +1,34 @@
+{
+  "inputs": [
+    "px0", "px1", "px2", "px3", "px4", "px5", "px6", "px7",
+    "px8", "c0", "c1", "c2", "c3", "c4", "c5", "c6",
+    "c7", "c8"
+  ],
+  "input_ranges": {
+    "px0": [0, 255], "px1": [0, 255], "px2": [0, 255], "px3": [0, 255],
+    "px4": [0, 255], "px5": [0, 255], "px6": [0, 255], "px7": [0, 255],
+    "px8": [0, 255], "c0": [1, 1], "c1": [2, 2], "c2": [1, 1],
+    "c3": [2, 2], "c4": [4, 4], "c5": [2, 2], "c6": [1, 1],
+    "c7": [2, 2], "c8": [1, 1]
+  },
+  "nodes": [
+    {"id": "mult_0", "op": "mul", "inputs": ["px0", "c0"], "output": "prod_0"},
+    {"id": "mult_1", "op": "mul", "inputs": ["px1", "c1"], "output": "prod_1"},
+    {"id": "mult_2", "op": "mul", "inputs": ["px2", "c2"], "output": "prod_2"},
+    {"id": "mult_3", "op": "mul", "inputs": ["px3", "c3"], "output": "prod_3"},
+    {"id": "mult_4", "op": "mul", "inputs": ["px4", "c4"], "output": "prod_4"},
+    {"id": "mult_5", "op": "mul", "inputs": ["px5", "c5"], "output": "prod_5"},
+    {"id": "mult_6", "op": "mul", "inputs": ["px6", "c6"], "output": "prod_6"},
+    {"id": "mult_7", "op": "mul", "inputs": ["px7", "c7"], "output": "prod_7"},
+    {"id": "mult_8", "op": "mul", "inputs": ["px8", "c8"], "output": "prod_8"},
+    {"id": "adder_0", "op": "add", "inputs": ["prod_0", "prod_1"], "output": "L0_0"},
+    {"id": "adder_1", "op": "add", "inputs": ["prod_2", "prod_3"], "output": "L0_1"},
+    {"id": "adder_2", "op": "add", "inputs": ["prod_4", "prod_5"], "output": "L0_2"},
+    {"id": "adder_3", "op": "add", "inputs": ["prod_6", "prod_7"], "output": "L0_3"},
+    {"id": "adder_4", "op": "add", "inputs": ["L0_0", "L0_1"], "output": "L1_0"},
+    {"id": "adder_5", "op": "add", "inputs": ["L0_2", "L0_3"], "output": "L1_1"},
+    {"id": "adder_6", "op": "add", "inputs": ["L1_0", "L1_1"], "output": "L2_0"},
+    {"id": "adder_7", "op": "add", "inputs": ["L2_0", "prod_8"], "output": "out"}
+  ],
+  "output": "out"
+}

@@ -1,0 +1,30 @@
+{
+  "inputs": [
+    "in0", "in1", "in2", "in3", "in4", "in5", "in6", "in7",
+    "in8", "in9", "in10", "in11", "in12", "in13", "in14", "in15"
+  ],
+  "input_ranges": {
+    "in0": [0, 4095], "in1": [0, 4095], "in2": [0, 4095], "in3": [0, 4095],
+    "in4": [0, 4095], "in5": [0, 4095], "in6": [0, 4095], "in7": [0, 4095],
+    "in8": [0, 4095], "in9": [0, 4095], "in10": [0, 4095], "in11": [0, 4095],
+    "in12": [0, 4095], "in13": [0, 4095], "in14": [0, 4095], "in15": [0, 4095]
+  },
+  "nodes": [
+    {"id": "adder_0", "op": "add", "inputs": ["in0", "in1"], "output": "L0_0"},
+    {"id": "adder_1", "op": "add", "inputs": ["in2", "in3"], "output": "L0_1"},
+    {"id": "adder_2", "op": "add", "inputs": ["in4", "in5"], "output": "L0_2"},
+    {"id": "adder_3", "op": "add", "inputs": ["in6", "in7"], "output": "L0_3"},
+    {"id": "adder_4", "op": "add", "inputs": ["in8", "in9"], "output": "L0_4"},
+    {"id": "adder_5", "op": "add", "inputs": ["in10", "in11"], "output": "L0_5"},
+    {"id": "adder_6", "op": "add", "inputs": ["in12", "in13"], "output": "L0_6"},
+    {"id": "adder_7", "op": "add", "inputs": ["in14", "in15"], "output": "L0_7"},
+    {"id": "adder_8", "op": "add", "inputs": ["L0_0", "L0_1"], "output": "L1_0"},
+    {"id": "adder_9", "op": "add", "inputs": ["L0_2", "L0_3"], "output": "L1_1"},
+    {"id": "adder_10", "op": "add", "inputs": ["L0_4", "L0_5"], "output": "L1_2"},
+    {"id": "adder_11", "op": "add", "inputs": ["L0_6", "L0_7"], "output": "L1_3"},
+    {"id": "adder_12", "op": "add", "inputs": ["L1_0", "L1_1"], "output": "L2_0"},
+    {"id": "adder_13", "op": "add", "inputs": ["L1_2", "L1_3"], "output": "L2_1"},
+    {"id": "adder_14", "op": "add", "inputs": ["L2_0", "L2_1"], "output": "out"}
+  ],
+  "output": "out"
+}

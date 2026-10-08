@@ -1,0 +1,82 @@
+───────────────────────────────── DSE PIPELINE ─────────────────────────────────
+  benchmark    : fir   (17 nodes: 8 add, 9 mul, M_out 65,280)
+  mode         : analytical   (analytical model only)
+  cap          : 5.0 %
+  budget       : 1000 iterations
+  start        : root   seed 0
+  simulation   : 1,000,000 samples (input seed 42)
+  model        : node + depth-2 feeder tables
+  area         : unit area library + Design Compiler at the end (original 
+netlist, clock clk period 0.2 ns)
+
+Stage 1/4  Setup
+  load benchmark and libraries : 170.2 µs
+  analytical tables            : 5.2 ms
+  simulation inputs            : 33.9 ms
+  start configuration          : 77.5 µs   library area 6975.7 of 6975.7, 
+analytical RMS 0.000 %
+
+Stage 2/4  Analytical search
+  evaluator    : analytical   cap 5.000 %   budget 1000 iterations
+  -> best RMS 3.712 % (analytical)   library area 3454.7 (50.5 % saved)
+     1001 iterations, 730 evaluations, 76 cache hits   41.6 ms (evaluation 27.7 
+ms, mean 38.0 µs · tree search 13.9 ms)
+
+Stage 3/4  Final simulation
+  simulated RMS 3.681 % on 1,000,000 samples   cap 5.0 %   within cap   461.8 ms
+
+Stage 4/4  Synthesis
+  netlist      : original   clock clk period 0.2 ns   two Design Compiler runs 
+in parallel
+                                                                   
+  Config   Total area   Cell area       Power     Slack   DC time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  exact        7485.3      3935.9   6.1576 mW   0.06 ns   23.02 s  
+  final        3872.1      2060.3   4.1219 mW   0.04 ns   11.28 s  
+                                                                   
+  area reduction  : 48.3 %
+  power reduction : 33.1 %
+
+─────────────────────────────────── SUMMARY ────────────────────────────────────
+                                 Search phases                                  
+                                                                                
+                                                    Library                     
+  Phase        Cap   Iterat…   Evalua…   Best RMS      area   Saving      Time  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  analyt…   5.00 %      1001       730    3.712 %    3454.7   50.5 %   41.6 ms  
+                                                                                
+                  Timing                  
+                                          
+  Stage                   Time     Share  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  setup                39.4 ms     0.2 %  
+  analytical search    41.6 ms     0.2 %  
+  final simulation    461.8 ms     2.0 %  
+  synthesis            23.02 s    97.7 %  
+                                          
+  total                23.57 s   100.0 %  
+                                          
+                        Error evaluators                        
+                                                                
+  Evaluator    Calls   Cache hits   Total time   Mean per call  
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  simulation       1            0     461.7 ms        461.7 ms  
+  analytical     731           77      27.8 ms         38.0 µs  
+                                                                
+analytical evaluation is 12,147× faster than simulation (38.0 µs over 731 calls 
+vs 461.7 ms over 1)
+
+final RMS (simulated)  : 3.681 %   cap 5.0 %   within cap
+final RMS (analytical) : 3.712 %   inaccuracy 0.84 %
+area (DC)              : 3872.1 of 7485.3   reduction 48.3 %
+power (DC)             : 4.1219 of 6.1576 mW   reduction 33.1 %
+approximated units     : 15 of 17
+mult_1=mul16u_AQ1, mult_2=mul16u_5FA, mult_3=mul16u_DAE, mult_4=mul16u_AQ1, 
+mult_5=mul16u_AQ1, mult_6=mul16u_DAE, mult_7=mul16u_DAE, mult_8=mul16u_HGY, 
+adder_0=add16u_0GK, adder_1=add16u_0EM, adder_2=add16u_0GK, adder_3=add16u_0Q7, 
+adder_4=add16u_073, adder_6=add16u_0M0, adder_7=add16u_0AV
+
+total time : 23.57 s
+
+result JSON  : results/dse/final_check/analytical_s0.json
+terminal log : results/dse/final_check/analytical_s0.log

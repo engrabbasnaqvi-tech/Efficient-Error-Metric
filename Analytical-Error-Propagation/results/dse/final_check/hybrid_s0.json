@@ -1,0 +1,205 @@
+{
+ "benchmark": "fir",
+ "args": {
+  "benchmark": "fir",
+  "mode": "hybrid",
+  "cap": 5.0,
+  "budget": 1000,
+  "analytical_budget": 1000,
+  "margin": 1.0,
+  "start": "root",
+  "samples": 1000000,
+  "depth": 2,
+  "seed": 0,
+  "out": "results/dse/final_check/hybrid_s0.json",
+  "quiet": true,
+  "synth": true,
+  "netlist": "original",
+  "max_delay": null
+ },
+ "start": {
+  "mult_0": 11,
+  "mult_1": 11,
+  "mult_2": 11,
+  "mult_3": 11,
+  "mult_4": 11,
+  "mult_5": 11,
+  "mult_6": 11,
+  "mult_7": 11,
+  "mult_8": 11,
+  "adder_0": 0,
+  "adder_1": 0,
+  "adder_2": 0,
+  "adder_3": 0,
+  "adder_4": 0,
+  "adder_5": 0,
+  "adder_6": 0,
+  "adder_7": 0
+ },
+ "phases": {
+  "analytical": {
+   "codes": {
+    "mult_0": 18,
+    "mult_1": 13,
+    "mult_2": 15,
+    "mult_3": 13,
+    "mult_4": 14,
+    "mult_5": 14,
+    "mult_6": 15,
+    "mult_7": 15,
+    "mult_8": 15,
+    "adder_0": 8,
+    "adder_1": 6,
+    "adder_2": 6,
+    "adder_3": 5,
+    "adder_4": 8,
+    "adder_5": 2,
+    "adder_6": 2,
+    "adder_7": 7
+   },
+   "rms": 2.9660543453125685,
+   "area": 3192.40903,
+   "path": "adder_0=add16u_0GK, mult_1=mul16u_AQ1, adder_6=add16u_0AV, adder_3=add16u_073, mult_4=mul16u_5FA, adder_1=add16u_0M0, mult_8=mul16u_DAE, mult_5=mul16u_5FA, mult_0=mul16u_8VH, adder_5=add16u_0AV, adder_2=add16u_0M0, adder_7=add16u_0DL, mult_2=mul16u_DAE, mult_3=mul16u_AQ1, adder_4=add16u_0GK, mult_7=mul16u_DAE, mult_6=mul16u_DAE",
+   "base_area": 6975.717304000001,
+   "iterations": 1001,
+   "expanded": 703,
+   "evaluator": "analytical",
+   "cap": 4.0,
+   "budget": 1000,
+   "seconds": 0.0376168480142951,
+   "evaluations": 635,
+   "cache_hits": 68,
+   "eval_seconds": 0.02560781582724303,
+   "search_seconds": 0.012009032187052071,
+   "saving_pct": 54.235401308917496,
+   "sim_rms": 2.9580154433721155
+  },
+  "simulation": {
+   "codes": {
+    "mult_0": 18,
+    "mult_1": 13,
+    "mult_2": 15,
+    "mult_3": 13,
+    "mult_4": 14,
+    "mult_5": 14,
+    "mult_6": 15,
+    "mult_7": 15,
+    "mult_8": 15,
+    "adder_0": 8,
+    "adder_1": 6,
+    "adder_2": 6,
+    "adder_3": 5,
+    "adder_4": 8,
+    "adder_5": 2,
+    "adder_6": 3,
+    "adder_7": 7
+   },
+   "rms": 2.9580154433721155,
+   "area": 3190.35389,
+   "path": "adder_6=add16u_0EM",
+   "base_area": 3192.40903,
+   "iterations": 1001,
+   "expanded": 732,
+   "evaluator": "simulation",
+   "cap": 5.0,
+   "budget": 1000,
+   "seconds": 247.9425223589642,
+   "evaluations": 673,
+   "cache_hits": 59,
+   "eval_seconds": 247.87980797188357,
+   "search_seconds": 0.06271438708063215,
+   "saving_pct": 54.264862651893964
+  }
+ },
+ "final": {
+  "codes": {
+   "mult_0": 18,
+   "mult_1": 13,
+   "mult_2": 15,
+   "mult_3": 13,
+   "mult_4": 14,
+   "mult_5": 14,
+   "mult_6": 15,
+   "mult_7": 15,
+   "mult_8": 15,
+   "adder_0": 8,
+   "adder_1": 6,
+   "adder_2": 6,
+   "adder_3": 5,
+   "adder_4": 8,
+   "adder_5": 2,
+   "adder_6": 3,
+   "adder_7": 7
+  },
+  "sim_rms": 2.9580154433721155,
+  "area": 3190.35389,
+  "exact_area": 6975.717304000001,
+  "saving_pct": 54.264862651893964,
+  "model_rms": 2.9680042748288993,
+  "model_inaccuracy_pct": 0.33768692719861393
+ },
+ "synthesis": {
+  "exact": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_hybrid_exact",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 7485.26651,
+   "cell_area": 3935.909984,
+   "slack": 0.06,
+   "dynamic_mw": 6.1568,
+   "leakage_mw": 0.0008116267999999999,
+   "total_mw": 6.1576,
+   "seconds": 23.45092517498415
+  },
+  "final": {
+   "folder": "/home/student/Documents/Analytical/Efficient-Error-Metric/Analytical-Error-Propagation/area/runs/fir_hybrid_final",
+   "netlist": "original",
+   "constraint": {
+    "clock": "clk",
+    "clock_period": 0.2
+   },
+   "ran": true,
+   "total_area": 3621.125166,
+   "cell_area": 1940.465995,
+   "slack": 0.04,
+   "dynamic_mw": 3.729,
+   "leakage_mw": 0.0004593989,
+   "total_mw": 3.7294,
+   "seconds": 9.267879344988614
+  },
+  "netlist": "original",
+  "constraint": {
+   "clock": "clk",
+   "clock_period": 0.2
+  },
+  "area_reduction_pct": 51.62329676355104,
+  "power_reduction_pct": 39.434195140964015
+ },
+ "timing": {
+  "setup": 0.03994620800949633,
+  "analytical search": 0.0376168480142951,
+  "handoff check": 0.5199590760748833,
+  "simulation search": 247.9425223589642,
+  "final simulation": 0.4582488229498267,
+  "synthesis": 23.466279339045286,
+  "total": 272.4737018549349
+ },
+ "evaluations": {
+  "simulation": {
+   "calls": 675,
+   "cache_hits": 59,
+   "seconds": 248.85800557082985,
+   "mean_seconds": 0.3686785267715998
+  },
+  "analytical": {
+   "calls": 637,
+   "cache_hits": 68,
+   "seconds": 0.025802142801694572,
+   "mean_seconds": 4.050571868397892e-05
+  }
+ }
+}

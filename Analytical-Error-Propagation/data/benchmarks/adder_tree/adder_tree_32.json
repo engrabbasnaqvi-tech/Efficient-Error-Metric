@@ -1,0 +1,52 @@
+{
+  "inputs": [
+    "in0", "in1", "in2", "in3", "in4", "in5", "in6", "in7",
+    "in8", "in9", "in10", "in11", "in12", "in13", "in14", "in15",
+    "in16", "in17", "in18", "in19", "in20", "in21", "in22", "in23",
+    "in24", "in25", "in26", "in27", "in28", "in29", "in30", "in31"
+  ],
+  "input_ranges": {
+    "in0": [0, 2047], "in1": [0, 2047], "in2": [0, 2047], "in3": [0, 2047],
+    "in4": [0, 2047], "in5": [0, 2047], "in6": [0, 2047], "in7": [0, 2047],
+    "in8": [0, 2047], "in9": [0, 2047], "in10": [0, 2047], "in11": [0, 2047],
+    "in12": [0, 2047], "in13": [0, 2047], "in14": [0, 2047], "in15": [0, 2047],
+    "in16": [0, 2047], "in17": [0, 2047], "in18": [0, 2047], "in19": [0, 2047],
+    "in20": [0, 2047], "in21": [0, 2047], "in22": [0, 2047], "in23": [0, 2047],
+    "in24": [0, 2047], "in25": [0, 2047], "in26": [0, 2047], "in27": [0, 2047],
+    "in28": [0, 2047], "in29": [0, 2047], "in30": [0, 2047], "in31": [0, 2047]
+  },
+  "nodes": [
+    {"id": "adder_0", "op": "add", "inputs": ["in0", "in1"], "output": "L0_0"},
+    {"id": "adder_1", "op": "add", "inputs": ["in2", "in3"], "output": "L0_1"},
+    {"id": "adder_2", "op": "add", "inputs": ["in4", "in5"], "output": "L0_2"},
+    {"id": "adder_3", "op": "add", "inputs": ["in6", "in7"], "output": "L0_3"},
+    {"id": "adder_4", "op": "add", "inputs": ["in8", "in9"], "output": "L0_4"},
+    {"id": "adder_5", "op": "add", "inputs": ["in10", "in11"], "output": "L0_5"},
+    {"id": "adder_6", "op": "add", "inputs": ["in12", "in13"], "output": "L0_6"},
+    {"id": "adder_7", "op": "add", "inputs": ["in14", "in15"], "output": "L0_7"},
+    {"id": "adder_8", "op": "add", "inputs": ["in16", "in17"], "output": "L0_8"},
+    {"id": "adder_9", "op": "add", "inputs": ["in18", "in19"], "output": "L0_9"},
+    {"id": "adder_10", "op": "add", "inputs": ["in20", "in21"], "output": "L0_10"},
+    {"id": "adder_11", "op": "add", "inputs": ["in22", "in23"], "output": "L0_11"},
+    {"id": "adder_12", "op": "add", "inputs": ["in24", "in25"], "output": "L0_12"},
+    {"id": "adder_13", "op": "add", "inputs": ["in26", "in27"], "output": "L0_13"},
+    {"id": "adder_14", "op": "add", "inputs": ["in28", "in29"], "output": "L0_14"},
+    {"id": "adder_15", "op": "add", "inputs": ["in30", "in31"], "output": "L0_15"},
+    {"id": "adder_16", "op": "add", "inputs": ["L0_0", "L0_1"], "output": "L1_0"},
+    {"id": "adder_17", "op": "add", "inputs": ["L0_2", "L0_3"], "output": "L1_1"},
+    {"id": "adder_18", "op": "add", "inputs": ["L0_4", "L0_5"], "output": "L1_2"},
+    {"id": "adder_19", "op": "add", "inputs": ["L0_6", "L0_7"], "output": "L1_3"},
+    {"id": "adder_20", "op": "add", "inputs": ["L0_8", "L0_9"], "output": "L1_4"},
+    {"id": "adder_21", "op": "add", "inputs": ["L0_10", "L0_11"], "output": "L1_5"},
+    {"id": "adder_22", "op": "add", "inputs": ["L0_12", "L0_13"], "output": "L1_6"},
+    {"id": "adder_23", "op": "add", "inputs": ["L0_14", "L0_15"], "output": "L1_7"},
+    {"id": "adder_24", "op": "add", "inputs": ["L1_0", "L1_1"], "output": "L2_0"},
+    {"id": "adder_25", "op": "add", "inputs": ["L1_2", "L1_3"], "output": "L2_1"},
+    {"id": "adder_26", "op": "add", "inputs": ["L1_4", "L1_5"], "output": "L2_2"},
+    {"id": "adder_27", "op": "add", "inputs": ["L1_6", "L1_7"], "output": "L2_3"},
+    {"id": "adder_28", "op": "add", "inputs": ["L2_0", "L2_1"], "output": "L3_0"},
+    {"id": "adder_29", "op": "add", "inputs": ["L2_2", "L2_3"], "output": "L3_1"},
+    {"id": "adder_30", "op": "add", "inputs": ["L3_0", "L3_1"], "output": "out"}
+  ],
+  "output": "out"
+}

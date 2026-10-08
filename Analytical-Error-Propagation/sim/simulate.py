@@ -6,6 +6,7 @@ import numpy as np
 BIN = Path(__file__).resolve().parent / "bin"
 EXACT = {"add": 0, "mul": 11}
 UNITS = {"add": list(range(2, 11)), "mul": list(range(13, 22))}
+SEED_INPUTS = 42
 
 
 def run_unit(op, code, a, b):
@@ -27,6 +28,14 @@ def sample_inputs(dfg, n, seed):
         lo, hi = (int(v) for v in dfg.input_ranges[name])
         values[name] = np.full(n, lo, dtype=np.int64) if lo == hi else rng.integers(lo, hi + 1, n, dtype=np.int64)
     return values
+
+
+def random_config(dfg, rng):
+    density = rng.uniform(0.1, 0.9)
+    return {
+        node.id: int(rng.choice(UNITS[node.op])) if rng.random() < density else EXACT[node.op]
+        for node in dfg.nodes
+    }
 
 
 def simulate(dfg, codes, inputs):

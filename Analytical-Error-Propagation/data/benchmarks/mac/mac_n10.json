@@ -1,0 +1,36 @@
+{
+  "inputs": [
+    "in0", "in1", "in2", "in3", "in4", "in5", "in6", "in7",
+    "in8", "in9", "c0", "c1", "c2", "c3", "c4", "c5",
+    "c6", "c7", "c8", "c9"
+  ],
+  "input_ranges": {
+    "in0": [0, 255], "in1": [0, 255], "in2": [0, 255], "in3": [0, 255],
+    "in4": [0, 255], "in5": [0, 255], "in6": [0, 255], "in7": [0, 255],
+    "in8": [0, 255], "in9": [0, 255], "c0": [12, 12], "c1": [34, 34],
+    "c2": [25, 25], "c3": [31, 31], "c4": [62, 62], "c5": [42, 42],
+    "c6": [6, 6], "c7": [12, 12], "c8": [3, 3], "c9": [29, 29]
+  },
+  "nodes": [
+    {"id": "mult_0", "op": "mul", "inputs": ["in0", "c0"], "output": "t0"},
+    {"id": "mult_1", "op": "mul", "inputs": ["in1", "c1"], "output": "t1"},
+    {"id": "mult_2", "op": "mul", "inputs": ["in2", "c2"], "output": "t2"},
+    {"id": "mult_3", "op": "mul", "inputs": ["in3", "c3"], "output": "t3"},
+    {"id": "mult_4", "op": "mul", "inputs": ["in4", "c4"], "output": "t4"},
+    {"id": "mult_5", "op": "mul", "inputs": ["in5", "c5"], "output": "t5"},
+    {"id": "mult_6", "op": "mul", "inputs": ["in6", "c6"], "output": "t6"},
+    {"id": "mult_7", "op": "mul", "inputs": ["in7", "c7"], "output": "t7"},
+    {"id": "mult_8", "op": "mul", "inputs": ["in8", "c8"], "output": "t8"},
+    {"id": "mult_9", "op": "mul", "inputs": ["in9", "c9"], "output": "t9"},
+    {"id": "adder_0", "op": "add", "inputs": ["t0", "t1"], "output": "sum_0"},
+    {"id": "adder_1", "op": "add", "inputs": ["t2", "t3"], "output": "sum_1"},
+    {"id": "adder_2", "op": "add", "inputs": ["t4", "t5"], "output": "sum_2"},
+    {"id": "adder_3", "op": "add", "inputs": ["t6", "t7"], "output": "sum_3"},
+    {"id": "adder_4", "op": "add", "inputs": ["t8", "t9"], "output": "sum_4"},
+    {"id": "adder_5", "op": "add", "inputs": ["sum_0", "sum_1"], "output": "sum_5"},
+    {"id": "adder_6", "op": "add", "inputs": ["sum_2", "sum_3"], "output": "sum_6"},
+    {"id": "adder_7", "op": "add", "inputs": ["sum_5", "sum_6"], "output": "sum_7"},
+    {"id": "adder_8", "op": "add", "inputs": ["sum_7", "sum_4"], "output": "out"}
+  ],
+  "output": "out"
+}

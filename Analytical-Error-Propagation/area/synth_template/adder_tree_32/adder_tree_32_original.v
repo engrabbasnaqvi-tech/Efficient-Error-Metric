@@ -1,0 +1,73 @@
+//Top level module for adder tree, N=32
+module adder_tree_32 (in0, in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17, in18, in19, in20, in21, in22, in23, in24, in25, in26, in27, in28, in29, in30, in31, out);
+input [15:0] in0;
+input [15:0] in1;
+input [15:0] in2;
+input [15:0] in3;
+input [15:0] in4;
+input [15:0] in5;
+input [15:0] in6;
+input [15:0] in7;
+input [15:0] in8;
+input [15:0] in9;
+input [15:0] in10;
+input [15:0] in11;
+input [15:0] in12;
+input [15:0] in13;
+input [15:0] in14;
+input [15:0] in15;
+input [15:0] in16;
+input [15:0] in17;
+input [15:0] in18;
+input [15:0] in19;
+input [15:0] in20;
+input [15:0] in21;
+input [15:0] in22;
+input [15:0] in23;
+input [15:0] in24;
+input [15:0] in25;
+input [15:0] in26;
+input [15:0] in27;
+input [15:0] in28;
+input [15:0] in29;
+input [15:0] in30;
+input [15:0] in31;
+output [31:0] out;
+
+wire [31:0] lvl1_0, lvl1_1, lvl1_2, lvl1_3, lvl1_4, lvl1_5, lvl1_6, lvl1_7, lvl1_8, lvl1_9, lvl1_10, lvl1_11, lvl1_12, lvl1_13, lvl1_14, lvl1_15, lvl2_0, lvl2_1, lvl2_2, lvl2_3, lvl2_4, lvl2_5, lvl2_6, lvl2_7, lvl3_0, lvl3_1, lvl3_2, lvl3_3, lvl4_0, lvl4_1, lvl5_0;
+
+adder_16bit component_01({16'b0,in0}, {16'b0,in1}, lvl1_0);
+adder_16bit component_02({16'b0,in2}, {16'b0,in3}, lvl1_1);
+adder_16bit component_03({16'b0,in4}, {16'b0,in5}, lvl1_2);
+adder_16bit component_04({16'b0,in6}, {16'b0,in7}, lvl1_3);
+adder_16bit component_05({16'b0,in8}, {16'b0,in9}, lvl1_4);
+adder_16bit component_06({16'b0,in10}, {16'b0,in11}, lvl1_5);
+adder_16bit component_07({16'b0,in12}, {16'b0,in13}, lvl1_6);
+adder_16bit component_08({16'b0,in14}, {16'b0,in15}, lvl1_7);
+adder_16bit component_09({16'b0,in16}, {16'b0,in17}, lvl1_8);
+adder_16bit component_10({16'b0,in18}, {16'b0,in19}, lvl1_9);
+adder_16bit component_11({16'b0,in20}, {16'b0,in21}, lvl1_10);
+adder_16bit component_12({16'b0,in22}, {16'b0,in23}, lvl1_11);
+adder_16bit component_13({16'b0,in24}, {16'b0,in25}, lvl1_12);
+adder_16bit component_14({16'b0,in26}, {16'b0,in27}, lvl1_13);
+adder_16bit component_15({16'b0,in28}, {16'b0,in29}, lvl1_14);
+adder_16bit component_16({16'b0,in30}, {16'b0,in31}, lvl1_15);
+adder_16bit component_17(lvl1_0, lvl1_1, lvl2_0);
+adder_16bit component_18(lvl1_2, lvl1_3, lvl2_1);
+adder_16bit component_19(lvl1_4, lvl1_5, lvl2_2);
+adder_16bit component_20(lvl1_6, lvl1_7, lvl2_3);
+adder_16bit component_21(lvl1_8, lvl1_9, lvl2_4);
+adder_16bit component_22(lvl1_10, lvl1_11, lvl2_5);
+adder_16bit component_23(lvl1_12, lvl1_13, lvl2_6);
+adder_16bit component_24(lvl1_14, lvl1_15, lvl2_7);
+adder_16bit component_25(lvl2_0, lvl2_1, lvl3_0);
+adder_16bit component_26(lvl2_2, lvl2_3, lvl3_1);
+adder_16bit component_27(lvl2_4, lvl2_5, lvl3_2);
+adder_16bit component_28(lvl2_6, lvl2_7, lvl3_3);
+adder_16bit component_29(lvl3_0, lvl3_1, lvl4_0);
+adder_16bit component_30(lvl3_2, lvl3_3, lvl4_1);
+adder_16bit component_31(lvl4_0, lvl4_1, lvl5_0);
+
+assign out = lvl5_0;
+
+endmodule
