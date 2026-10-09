@@ -9,7 +9,9 @@ Writes data/node_metrics/<benchmark>.json and data/node_metrics/<benchmark>_feed
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
+
 from model.data import DATA, load_benchmark
 from sim.simulate import EXACT, UNITS, run_unit, sample_inputs
 

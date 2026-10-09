@@ -42,13 +42,13 @@ def rewrite_original(text, dfg, codes, lib):
         op = "mul" if "mul" in match.group(2).lower() else "add"
         instances[op].append((int(match.group(5)), match.group(4)))
     nodes = {op: [node.id for node in dfg.nodes if node.op == op] for op in instances}
-    for op in instances:
-        if len(instances[op]) != len(nodes[op]):
-            raise ValueError(f"original netlist has {len(instances[op])} {op} instances, the DFG {len(nodes[op])} {op} nodes")
+    for op, found in instances.items():
+        if len(found) != len(nodes[op]):
+            raise ValueError(f"original netlist has {len(found)} {op} instances, the DFG {len(nodes[op])} {op} nodes")
 
     module_of = {}
-    for op in instances:
-        for (_, instance), nid in zip(sorted(instances[op]), nodes[op]):
+    for op, found in instances.items():
+        for (_, instance), nid in zip(sorted(found), nodes[op]):
             module_of[instance] = module_name(codes[nid], op, lib)
 
     def substitute(match):

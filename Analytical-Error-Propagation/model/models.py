@@ -1,4 +1,3 @@
-from typing import Dict, List, Tuple, Union
 
 from pydantic import BaseModel, Field
 
@@ -13,12 +12,12 @@ class ComponentVariant(BaseModel):
 class BenchmarkNode(BaseModel):
     id: str
     op: str
-    inputs: List[str]
+    inputs: list[str]
     output: str
 
 
 class BenchmarkDFG(BaseModel):
-    inputs: List[str]
-    input_ranges: Dict[str, Tuple[Union[int, float], Union[int, float]]] = Field(default_factory=dict)
-    nodes: List[BenchmarkNode]
+    inputs: list[str]
+    input_ranges: dict[str, tuple[int | float, int | float]] = Field(default_factory=dict)
+    nodes: list[BenchmarkNode]
     output: str

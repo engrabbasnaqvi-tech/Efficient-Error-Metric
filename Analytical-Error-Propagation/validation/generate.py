@@ -16,7 +16,14 @@ import numpy as np
 
 from model.data import DATA, load_benchmark, read_json
 from model.propagate import compute_wire_max
-from sim.simulate import EXACT, SEED_INPUTS, UNITS, random_config, sample_inputs, simulate
+from sim.simulate import (
+    EXACT,
+    SEED_INPUTS,
+    UNITS,
+    random_config,
+    sample_inputs,
+    simulate,
+)
 
 LOW, HIGH = 0.5, 10.0
 MAX_DRAWS = 2000

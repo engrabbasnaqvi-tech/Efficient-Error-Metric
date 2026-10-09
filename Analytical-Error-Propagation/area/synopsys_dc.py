@@ -103,7 +103,7 @@ def run_dc(tcl, folder, report):
     for flags in ([], ["--fakeroot"]):
         proc = subprocess.run(
             [CONTAINER, "exec", *flags, str(SIF_IMAGE), "dc_shell", "-f", tcl],
-            cwd=folder, capture_output=True, text=True,
+            cwd=folder, capture_output=True, text=True, check=False,
         )
         for pattern in DC_JUNK:
             for junk in folder.glob(pattern):

@@ -1,13 +1,15 @@
 """
 Design space exploration with MCTS, using simulation, the analytical model, or both.
 
-    python3 pipeline.py <benchmark> --mode sim|analytical|hybrid [options]
+    python3 pipeline.py <benchmark> --mode sim|analytical|hybrid|eem [options]
 
 Modes:
     sim         every search step is simulated
     analytical  every search step uses the analytical model
-    hybrid      the analytical model searches first with the cap lowered by --margin,
-                then the simulation continues the search from the configuration it found
+    hybrid      the analytical model searches first, once per seed (--seeds), with the cap lowered
+                by --margin; its results are simulated smallest area first, and the simulation
+                continues the search from the first one under the cap
+    eem         every search step uses the EEM model (../EEM/EEM, or EEM_PATH)
 
 Start configuration (--start):
     root        all units exact (default)
@@ -26,16 +28,38 @@ from pathlib import Path
 import numpy as np
 from rich import box
 from rich.console import Console
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.table import Table
 
 from area.netlist import rewrite_original
-from area.synopsys_dc import SIF_IMAGE, constraint, dc_available, describe, original_netlist, synthesise, template
+from area.synopsys_dc import (
+    SIF_IMAGE,
+    constraint,
+    dc_available,
+    describe,
+    original_netlist,
+    synthesise,
+    template,
+)
 from dse.area import circuit_area, load_areas, variants
+from dse.eem import EEM_ROOT, eem_error
 from dse.mcts import run_mcts
 from model.data import DATA, load_benchmark, load_deep_table, load_library, read_json
 from model.propagate import compute_wire_max, propagate_circuit_scalar, scalar_rms
-from sim.simulate import EXACT, SEED_INPUTS, UNITS, random_config, sample_inputs, simulate
+from sim.simulate import (
+    EXACT,
+    SEED_INPUTS,
+    UNITS,
+    random_config,
+    sample_inputs,
+    simulate,
+)
 
 RESULTS = Path(__file__).resolve().parent / "results" / "dse"
 RANDOM_TRIES = 1000
@@ -244,6 +268,45 @@ def search(error_fn, base, cap, budget, dfg, lib, areas, quiet):
     return result
 
 
+def multi_search(error_fn, base, cap, budget, seeds, dfg, lib, areas):
+    # one search per seed; the distinct results are the handoff candidates
+    console.print(f"  evaluator    : [cyan]{error_fn.name}[/]   cap [yellow]{cap:.3f} %[/]   budget [cyan]{budget}[/] "
+                  f"iterations x [cyan]{len(seeds)}[/] seeds")
+    snap = error_fn.snapshot()
+    exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
+    moves = variants(dfg, lib, areas)
+    candidates, iterations = {}, 0
+    with Timer() as timer:
+        columns = (TextColumn("  {task.description}"), BarColumn(), MofNCompleteColumn(), TimeElapsedColumn())
+        with Progress(*columns, console=progress_console, transient=True) as progress:
+            task = progress.add_task(f"{error_fn.name} seeds", total=len(seeds))
+            for seed in seeds:
+                random.seed(seed)
+                r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn,
+                             lambda codes: circuit_area(codes, areas), cap, budget)
+                iterations += r["iterations"]
+                candidates.setdefault(tuple(sorted(r["codes"].items())),
+                                      {"codes": r["codes"], "rms": r["rms"], "area": r["area"], "seed": seed})
+                progress.update(task, advance=1)
+    ranked = sorted(candidates.values(), key=lambda c: c["area"])
+    for c in ranked:
+        c["saving_pct"] = (1 - c["area"] / exact_area) * 100
+    evals = error_fn.since(snap)
+    best = ranked[0]
+    result = {**best, "candidates": ranked, "seeds": len(seeds), "evaluator": error_fn.name, "cap": cap,
+              "budget": budget, "iterations": iterations, "seconds": timer.seconds, "evaluations": evals["calls"],
+              "cache_hits": evals["hits"], "eval_seconds": evals["seconds"],
+              "search_seconds": timer.seconds - evals["seconds"]}
+    console.print(f"  -> {len(seeds)} seeds, {len(ranked)} distinct candidates: saving "
+                  f"{ranked[-1]['saving_pct']:.1f} to {best['saving_pct']:.1f} %, model RMS "
+                  f"{min(c['rms'] for c in ranked):.3f} to {max(c['rms'] for c in ranked):.3f} %")
+    console.print(f"     {iterations} iterations, {evals['calls']} evaluations, {evals['hits']} cache hits   "
+                  f"[bold]{duration(timer.seconds)}[/] [dim](evaluation {duration(evals['seconds'])} · "
+                  f"tree search {duration(result['search_seconds'])})[/]")
+    console.print()
+    return result
+
+
 def reduction(before, after):
     return (1 - after / before) * 100 if before and after is not None else None
 
@@ -251,11 +314,10 @@ def reduction(before, after):
 def synthesis(benchmark, exact, final, mode, max_delay, netlist, timing):
     console.print(f"  netlist      : [cyan]{netlist}[/]   {describe(timing)}   two Design Compiler runs in parallel")
     jobs = {"exact": (exact, f"{mode}_exact"), "final": (final, f"{mode}_final")}
-    with progress_console.status("  running Design Compiler ..."):
-        with ThreadPoolExecutor(len(jobs)) as pool:
-            futures = {name: pool.submit(synthesise, benchmark, codes, tag, max_delay, netlist)
-                       for name, (codes, tag) in jobs.items()}
-            runs = {name: future.result() for name, future in futures.items()}
+    with progress_console.status("  running Design Compiler ..."), ThreadPoolExecutor(len(jobs)) as pool:
+        futures = {name: pool.submit(synthesise, benchmark, codes, tag, max_delay, netlist)
+                   for name, (codes, tag) in jobs.items()}
+        runs = {name: future.result() for name, future in futures.items()}
 
     table = Table(box=box.SIMPLE_HEAVY)
     for column in ("Config", "Total area", "Cell area", "Power", "Slack", "DC time"):
@@ -291,7 +353,7 @@ def synthesis(benchmark, exact, final, mode, max_delay, netlist, timing):
     return report
 
 
-def render_summary(args, phases, final, sim, model, timing, synth, total_seconds):
+def render_summary(args, phases, final, sim, estimator, timing, synth, total_seconds):
     console.rule("[bold blue]SUMMARY[/]")
 
     table = Table(box=box.SIMPLE_HEAVY, title="[bold]Search phases[/]")
@@ -315,20 +377,22 @@ def render_summary(args, phases, final, sim, model, timing, synth, total_seconds
     table = Table(box=box.SIMPLE_HEAVY, title="[bold]Error evaluators[/]")
     for column in ("Evaluator", "Calls", "Cache hits", "Total time", "Mean per call"):
         table.add_column(column, justify="left" if column == "Evaluator" else "right")
-    for ev in (sim, model):
+    for ev in (sim, estimator):
         mean = ev.mean()
         table.add_row(ev.name, str(ev.calls), str(ev.hits), duration(ev.seconds), duration(mean) if mean else "-")
     console.print(table)
-    if sim.mean() and model.mean():
-        console.print(f"analytical evaluation is [bold green]{sim.mean() / model.mean():,.0f}×[/] faster than simulation "
-                      f"({duration(model.mean())} over {model.calls} calls vs {duration(sim.mean())} over {sim.calls})")
+    if sim.mean() and estimator.mean():
+        ratio = sim.mean() / estimator.mean()
+        speed = f"[bold green]{ratio:,.0f}× faster[/]" if ratio >= 1 else f"[bold yellow]{1 / ratio:,.1f}× slower[/]"
+        console.print(f"{estimator.name} evaluation is {speed} than simulation ({duration(estimator.mean())} over "
+                      f"{estimator.calls} calls vs {duration(sim.mean())} over {sim.calls})")
 
     console.print()
     within = final["sim_rms"] <= args.cap
     verdict = "[green]within cap[/]" if within else "[bold red]over cap[/]"
     console.print(f"final RMS (simulated)  : [bold]{final['sim_rms']:.3f} %[/]   cap {args.cap} %   {verdict}")
     if final.get("model_rms") is not None:
-        console.print(f"final RMS (analytical) : {final['model_rms']:.3f} %   "
+        console.print(f"{'final RMS (' + estimator.name + ')':<23}: {final['model_rms']:.3f} %   "
                       f"inaccuracy {final['model_inaccuracy_pct']:.2f} %")
     if synth and synth["area_reduction_pct"] is not None:
         exact_run, final_run = synth["exact"], synth["final"]
@@ -349,14 +413,19 @@ def render_summary(args, phases, final, sim, model, timing, synth, total_seconds
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("benchmark")
-    parser.add_argument("--mode", choices=("sim", "analytical", "hybrid"), required=True)
+    parser.add_argument("--mode", choices=("sim", "analytical", "hybrid", "eem"), required=True)
     parser.add_argument("--cap", type=float, default=5.0, help="RMS error cap in %% of the maximum output (default 5)")
     parser.add_argument("--budget", type=int, default=500,
-                        help="MCTS iterations with simulation, or with the model in analytical mode")
+                        help="MCTS iterations with simulation, or with the model in analytical and eem mode")
     parser.add_argument("--analytical-budget", type=int, default=2000,
                         help="MCTS iterations of the analytical phase in hybrid mode")
     parser.add_argument("--margin", type=float, default=1.0,
                         help="hybrid: the analytical phase searches under cap - margin (RMS %%)")
+    parser.add_argument("--seeds", type=int,
+                        help="hybrid: analytical searches with seeds seed..seed+N-1, their results are the handoff "
+                             "candidates (default 100)")
+    parser.add_argument("--handoff-sims", type=int, default=10,
+                        help="hybrid: candidates simulated at most, smallest area first, until one is under the cap")
     parser.add_argument("--start", default="root", help="root, random, FILE or FILE:NAME (default root)")
     parser.add_argument("--samples", type=int, default=1_000_000,
                         help="simulation samples, in the search and the final check (default 1000000)")
@@ -376,6 +445,11 @@ def main():
     args = parser.parse_args()
     if args.mode == "hybrid" and args.margin >= args.cap:
         fail("--margin must be smaller than --cap")
+    if args.seeds is not None and args.mode != "hybrid":
+        fail("--seeds only applies with --mode hybrid")
+    args.seeds = 100 if args.seeds is None else args.seeds
+    if args.seeds < 1 or args.handoff_sims < 1:
+        fail("--seeds and --handoff-sims must be at least 1")
     if args.max_delay is not None and not args.synth:
         fail("--max-delay only applies with --synth")
     synth_timing = None
@@ -399,7 +473,7 @@ def main():
 
     stages = ["Setup"]
     stages += {"sim": ["Simulation search"], "analytical": ["Analytical search"],
-               "hybrid": ["Analytical search", "Handoff check", "Simulation search"]}[args.mode]
+               "hybrid": ["Analytical search", "Handoff check", "Simulation search"], "eem": ["EEM search"]}[args.mode]
     stages += ["Final simulation"] + (["Synthesis"] if args.synth else [])
     stage_no = iter(range(1, len(stages) + 1))
 
@@ -417,41 +491,55 @@ def main():
         model = Evaluator("analytical", model_fn)
     with Timer() as t_sim:
         sim = Evaluator("simulation", simulation_error(dfg, args.samples, m_out))
+    eem, t_eem = None, Timer()
+    if args.mode == "eem":
+        try:
+            with t_eem:
+                eem = Evaluator("eem", eem_error(dfg, args.samples, m_out, lib))
+        except (FileNotFoundError, ValueError) as error:
+            fail(f"--mode eem: {error}")
+    estimator = eem or model
 
     adds = sum(node.op == "add" for node in dfg.nodes)
     console.rule("[bold blue]DSE PIPELINE[/]")
     console.print(f"  benchmark    : [cyan]{args.benchmark}[/]   ({len(dfg.nodes)} nodes: {adds} add, "
                   f"{len(dfg.nodes) - adds} mul, M_out {m_out:,.0f})")
     described = {"sim": "simulation only", "analytical": "analytical model only",
-                 "hybrid": "analytical search, then simulation"}[args.mode]
+                 "hybrid": "analytical search, then simulation", "eem": "EEM model only"}[args.mode]
     console.print(f"  mode         : [cyan]{args.mode}[/]   ({described})")
     if args.mode == "hybrid":
         console.print(f"  cap          : [yellow]{args.cap} %[/]   margin [yellow]{args.margin} %[/]  ->  "
                       f"analytical cap [yellow]{args.cap - args.margin:g} %[/]")
-        console.print(f"  budget       : [cyan]{args.analytical_budget}[/] analytical + [cyan]{args.budget}[/] simulation iterations")
+        seeds = f" x [cyan]{args.seeds}[/] seeds"
+        console.print(f"  budget       : [cyan]{args.analytical_budget}[/] analytical{seeds} + [cyan]{args.budget}[/] "
+                      f"simulation iterations, up to [cyan]{args.handoff_sims}[/] handoff simulations")
     else:
         console.print(f"  cap          : [yellow]{args.cap} %[/]")
         console.print(f"  budget       : [cyan]{args.budget}[/] iterations")
     console.print(f"  start        : [cyan]{args.start}[/]   seed [cyan]{args.seed}[/]")
     console.print(f"  simulation   : [cyan]{args.samples:,}[/] samples (input seed {SEED_INPUTS})")
-    console.print(f"  model        : {source}")
+    console.print(f"  model        : {f'EEM ({EEM_ROOT})' if eem else source}")
+    if eem and eem.fn.different:
+        console.print(f"  [yellow]EEM implements these units differently from the simulation: {', '.join(eem.fn.different)}[/]")
     console.print("  area         : unit area library" + (f" + Design Compiler at the end ([cyan]{args.netlist}[/] "
                   f"netlist, {describe(synth_timing)})" if args.synth else " [dim](no synthesis)[/]"))
     console.print()
 
     stage("Setup")
     with Timer() as t_start:
-        first = sim if args.mode == "sim" else model
+        first = sim if args.mode == "sim" else estimator
         start = start_config(args, dfg, first)
         start_rms = first(start)
     exact = {node.id: EXACT[node.op] for node in dfg.nodes}
     exact_area = circuit_area(exact, areas)
     console.print(f"  load benchmark and libraries : {duration(t_load.seconds)}")
     console.print(f"  analytical tables            : {duration(t_model.seconds)}")
+    if eem:
+        console.print(f"  EEM model and input PMFs     : {duration(t_eem.seconds)}")
     console.print(f"  simulation inputs            : {duration(t_sim.seconds)}")
     console.print(f"  start configuration          : {duration(t_start.seconds)}   "
                   f"library area {circuit_area(start, areas):.1f} of {exact_area:.1f}, {first.name} RMS {start_rms:.3f} %")
-    timing["setup"] = t_load.seconds + t_model.seconds + t_sim.seconds + t_start.seconds
+    timing["setup"] = t_load.seconds + t_model.seconds + t_sim.seconds + (t_eem.seconds if eem else 0.0) + t_start.seconds
     console.print()
 
     phases = {}
@@ -459,26 +547,49 @@ def main():
         stage("Analytical search")
         cap = args.cap - args.margin if args.mode == "hybrid" else args.cap
         budget = args.analytical_budget if args.mode == "hybrid" else args.budget
-        phases["analytical"] = search(model, start, cap, budget, dfg, lib, areas, args.quiet)
+        if args.mode == "hybrid":
+            seeds = range(args.seed, args.seed + args.seeds)
+            phases["analytical"] = multi_search(model, start, cap, budget, seeds, dfg, lib, areas)
+        else:
+            phases["analytical"] = search(model, start, cap, budget, dfg, lib, areas, args.quiet)
         timing["analytical search"] = phases["analytical"]["seconds"]
 
     base = start
     if args.mode == "hybrid":
         stage("Handoff check")
         found = phases["analytical"]
+        candidates = found.get("candidates") or [{"codes": found["codes"], "rms": found["rms"], "area": found["area"],
+                                                  "saving_pct": found["saving_pct"]}]
+        # smallest area first; the first one under the cap is handed over
+        tried, chosen = [], None
         with Timer() as t_handoff:
-            handoff_rms = sim(found["codes"])
-        found["sim_rms"] = handoff_rms
-        gap = found["rms"] - handoff_rms
-        console.print(f"  analytical [cyan]{found['rms']:.3f} %[/]  ->  simulated [cyan]{handoff_rms:.3f} %[/]   "
-                      f"(model {'over' if gap >= 0 else 'under'}estimates by {abs(gap):.3f} points)   "
-                      f"{duration(t_handoff.seconds)}")
-        if handoff_rms > args.cap:
-            console.print(f"  [yellow]handoff is over the cap ({args.cap} %), the simulation starts from the start configuration[/]")
+            for i, cand in enumerate(candidates[:args.handoff_sims], 1):
+                with Timer() as t_one:
+                    real = sim(cand["codes"])
+                tried.append({"area": cand["area"], "model_rms": cand["rms"], "sim_rms": real})
+                ok = real <= args.cap
+                console.print(f"  candidate {i:>2}: saving {cand['saving_pct']:5.1f} %   model [cyan]{cand['rms']:.3f} %[/]  ->  "
+                              f"simulated [cyan]{real:.3f} %[/]   {'[green]within cap[/]' if ok else '[red]over cap[/]'}   "
+                              f"{duration(t_one.seconds)}")
+                if ok:
+                    chosen = cand
+                    break
+        found["handoff"] = tried
+        if chosen:
+            base = chosen["codes"]
+            found["sim_rms"] = tried[-1]["sim_rms"]
+            console.print(f"  -> candidate {len(tried)} handed over: saving {chosen['saving_pct']:.1f} %, "
+                          f"simulated {tried[-1]['sim_rms']:.3f} %")
         else:
-            base = found["codes"]
+            console.print(f"  [yellow]none of {len(tried)} candidates is under the cap ({args.cap} %), "
+                          f"the simulation starts from the start configuration[/]")
         timing["handoff check"] = t_handoff.seconds
         console.print()
+
+    if args.mode == "eem":
+        stage("EEM search")
+        phases["eem"] = search(eem, start, args.cap, args.budget, dfg, lib, areas, args.quiet)
+        timing["eem search"] = phases["eem"]["seconds"]
 
     if args.mode in ("sim", "hybrid"):
         stage("Simulation search")
@@ -494,7 +605,8 @@ def main():
     final = {"codes": final_codes, "sim_rms": final_rms, "area": final_area, "exact_area": exact_area,
              "saving_pct": (1 - final_area / exact_area) * 100}
     if args.mode != "sim":
-        final["model_rms"] = model(final_codes)
+        final["model"] = estimator.name
+        final["model_rms"] = estimator(final_codes)
         final["model_inaccuracy_pct"] = abs(final["model_rms"] - final_rms) / final_rms * 100 if final_rms else 0.0
     cached = ""
     if searched_rms is not None:
@@ -515,7 +627,7 @@ def main():
         timing["synthesis"] = t_synth.seconds
 
     total_seconds = time.perf_counter() - run_start
-    render_summary(args, phases, {**final, "lib": lib}, sim, model, timing, synth, total_seconds)
+    render_summary(args, phases, {**final, "lib": lib}, sim, estimator, timing, synth, total_seconds)
 
     out = args.out or RESULTS / f"{args.benchmark}_{args.mode}.json"
     log = out.with_suffix(".log")
@@ -529,7 +641,7 @@ def main():
         "synthesis": synth,
         "timing": {**timing, "total": total_seconds},
         "evaluations": {ev.name: {"calls": ev.calls, "cache_hits": ev.hits, "seconds": ev.seconds,
-                                  "mean_seconds": ev.mean()} for ev in (sim, model)},
+                                  "mean_seconds": ev.mean()} for ev in (sim, estimator)},
     }, indent=1))
     console.print(f"\n[dim]result JSON  : {out}[/]")
     console.print(f"[dim]terminal log : {log}[/]")

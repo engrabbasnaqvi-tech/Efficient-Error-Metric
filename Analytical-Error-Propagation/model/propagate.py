@@ -1,19 +1,19 @@
 import math
-from typing import Dict, Optional, Tuple
+
 from .models import BenchmarkDFG, ComponentVariant
 
 _ADDER_CANONICAL_RANGES = [2047, 4095, 8191, 16383, 32767, 65535]
 _MUL_CANONICAL_RANGES = [255, 511, 1023, 2047, 4095, 8191, 16383, 32767, 65535]
 
 
-def scalar_rms(wire_state: Dict[str, float], m_out: float = 1.0) -> float:
+def scalar_rms(wire_state: dict[str, float], m_out: float = 1.0) -> float:
     """RMS error as a percentage of the maximum output value."""
     return math.sqrt(max(wire_state["mse"], 0.0)) / max(m_out, 1.0) * 100.0
 
 
-def compute_wire_max(dfg: BenchmarkDFG) -> Dict[str, float]:
+def compute_wire_max(dfg: BenchmarkDFG) -> dict[str, float]:
     """Worst-case value of every wire."""
-    wire_max: Dict[str, float] = {}
+    wire_max: dict[str, float] = {}
     for inp in dfg.inputs:
         lo, hi = dfg.input_ranges.get(inp, (0.0, 0.0))
         wire_max[inp] = max(abs(float(lo)), abs(float(hi)))
@@ -33,12 +33,12 @@ def _range_entry(range_lib, name, ranges, max_input):
 
 
 def _node_scalars(
-    component_lib: Dict[int, ComponentVariant],
+    component_lib: dict[int, ComponentVariant],
     code: int,
-    adder_range_lib: Optional[Dict] = None,
-    mul_range_lib: Optional[Dict] = None,
+    adder_range_lib: dict | None = None,
+    mul_range_lib: dict | None = None,
     max_input: float = 65535.0,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Own error (me, mse) of a unit from the range-bucketed libraries."""
     cv = component_lib.get(code)
     if cv is None:
@@ -52,7 +52,7 @@ def _node_scalars(
     return cv.me, cv.error
 
 
-def _input_wire_state(lo: float, hi: float) -> Dict[str, float]:
+def _input_wire_state(lo: float, hi: float) -> dict[str, float]:
     """Uniform input over [lo, hi] without error."""
     ex = (lo + hi) / 2.0
     ex2 = (lo * lo + lo * hi + hi * hi) / 3.0
@@ -60,11 +60,11 @@ def _input_wire_state(lo: float, hi: float) -> Dict[str, float]:
 
 
 def _multiplier_output_state(
-    ws_a: Dict[str, float],
-    ws_b: Dict[str, float],
+    ws_a: dict[str, float],
+    ws_b: dict[str, float],
     me_r: float,
     mse_r: float,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Eq 13.
       E[c_exa]  = E[a_exa] · E[b_exa]
@@ -89,11 +89,11 @@ def _multiplier_output_state(
 
 
 def _adder_output_state(
-    ws_a: Dict[str, float],
-    ws_b: Dict[str, float],
+    ws_a: dict[str, float],
+    ws_b: dict[str, float],
     me_r: float,
     mse_r: float,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Eq 12.
       E[c_exa]  = E[a_exa] + E[b_exa]
@@ -113,10 +113,10 @@ def _adder_output_state(
 
 
 def _adder_output_state_feeder(
-    ws_a: Dict[str, float],
-    ws_b: Dict[str, float],
+    ws_a: dict[str, float],
+    ws_b: dict[str, float],
     entry: list,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Eq 12 with the own error measured behind the feeding units:
     entry = [E[Δr], E[Δr²], E[d·Δr], E[d]], d = Δa + Δb.
@@ -159,15 +159,15 @@ def _node_output_state(op, ws_a, ws_b, me_r, mse_r):
 
 def propagate_circuit_scalar(
     dfg: BenchmarkDFG,
-    codes: Dict[str, int],
-    component_lib: Dict[int, ComponentVariant],
-    adder_range_lib: Optional[Dict] = None,
-    mul_range_lib: Optional[Dict] = None,
-    wire_max: Optional[Dict[str, float]] = None,
-    node_lib: Optional[Dict] = None,
-    feeder_lib: Optional[Dict] = None,
-    deep_lib: Optional[Tuple[Dict, Dict]] = None,
-) -> Dict[str, Dict[str, float]]:
+    codes: dict[str, int],
+    component_lib: dict[int, ComponentVariant],
+    adder_range_lib: dict | None = None,
+    mul_range_lib: dict | None = None,
+    wire_max: dict[str, float] | None = None,
+    node_lib: dict | None = None,
+    feeder_lib: dict | None = None,
+    deep_lib: tuple[dict, dict] | None = None,
+) -> dict[str, dict[str, float]]:
     """
     Propagate {me, mse, ex, ex2} from the inputs to every wire.
 

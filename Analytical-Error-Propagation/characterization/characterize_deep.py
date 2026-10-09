@@ -21,6 +21,7 @@ import shutil
 import sys
 import time
 from multiprocessing import Pool
+from pathlib import Path
 
 import numpy as np
 
@@ -97,7 +98,7 @@ def port_streams(dfg, exact, wire, path):
 
 
 def init_worker(meta_path, work_dir):
-    meta = json.loads(open(meta_path).read())
+    meta = json.loads(Path(meta_path).read_text())
     STATE["meta"], STATE["work"], STATE["out"] = meta, work_dir, os.path.dirname(os.path.abspath(meta_path))
     STATE["exact"] = dict(np.load(os.path.join(work_dir, "exact.npz")))
     STATE["streams"] = {}
@@ -206,7 +207,7 @@ def check(benchmark, n, count, meta, work_dir):
         ia, ib = (history_index(p, codes) for p in node["ports"])
         stored = entries_for(node, ia, (ib, ib + 1))[node["own"].index(codes[node_id]), 0]
 
-        def direct(wire):
+        def direct(wire, codes=codes):
             feeder = producer.get(wire)
             if feeder is None:
                 return exact[wire]
@@ -234,14 +235,14 @@ def main():
     n = opt("--samples", 200_000)
 
     log(f"{benchmark}: preparing histories ({n:,} samples)")
-    dfg, meta, meta_path, work_dir = prepare(benchmark, n)
+    _, meta, meta_path, work_dir = prepare(benchmark, n)
     out_dir = str(meta_path.parent)
     if "--check" in args:
         worst = check(benchmark, n, opt("--check", 20), meta, work_dir)
         sys.exit(0 if worst < 1e-9 else 1)
 
     tasks, total_entries = [], 0
-    for node_id, node in meta["nodes"].items():
+    for node_id in meta["nodes"]:
         done = np.load(os.path.join(out_dir, f"{node_id}_done.npy"))
         tasks += [(node_id, int(i)) for i in np.flatnonzero(~done)]
         shape = np.load(os.path.join(out_dir, f"{node_id}.npy"), mmap_mode="r").shape
