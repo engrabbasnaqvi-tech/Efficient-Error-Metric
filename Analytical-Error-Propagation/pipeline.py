@@ -5,7 +5,8 @@ Design space exploration with MCTS, using simulation, the analytical model, or b
 
 Modes:
     sim         every search step is simulated
-    analytical  every search step uses the analytical model
+    analytical  the analytical model searches once per seed (--seeds); the results are simulated
+                smallest area first, and the first one under the cap is the result
     hybrid      the analytical model searches first, once per seed (--seeds), with the cap lowered
                 by --margin; its results are simulated smallest area first, and the simulation
                 continues the search from the first one under the cap
@@ -13,9 +14,13 @@ Modes:
 
 Start configuration (--start):
     root        all units exact (default)
-    random      a random configuration under the cap
     FILE        a JSON file with a codes dict, {"codes": {...}}, or a list of named
     FILE:NAME   configurations ("configs"), from which NAME is picked
+
+Random start (--rand-start mild|medium):
+    every node gets a random unit from the mildest third (mild) or two thirds (medium) of its
+    units by library MSE; while over the cap, random nodes step down to a mild unit, then to
+    exact. Analytical and hybrid draw one start per seed.
 """
 import argparse
 import json
@@ -56,13 +61,11 @@ from sim.simulate import (
     EXACT,
     SEED_INPUTS,
     UNITS,
-    random_config,
     sample_inputs,
     simulate,
 )
 
 RESULTS = Path(__file__).resolve().parent / "results" / "dse"
-RANDOM_TRIES = 1000
 console = Console(record=True)
 progress_console = Console(stderr=True)  # keeps the progress bar out of the log
 
@@ -205,20 +208,40 @@ def load_start_file(spec, dfg):
     return start
 
 
-def start_config(args, dfg, error_fn):
+def start_units(lib, areas, share):
+    # per op, the mildest share of the units smaller than the exact one, by library MSE
+    units = {}
+    for op, exact in EXACT.items():
+        smaller = sorted((c for c in UNITS[op] if c in areas and areas[c] < areas[exact]), key=lambda c: lib[c].error)
+        units[op] = smaller[:max(1, round(len(smaller) * share))]
+    return units
+
+
+def step_down(dfg, codes, mild, error_fn, cap, rng):
+    # random nodes step down, a stronger unit to a mild one and a mild one to exact, until under the cap
+    while error_fn(codes) > cap:
+        stronger = [n for n in dfg.nodes if codes[n.id] != EXACT[n.op] and codes[n.id] not in mild[n.op]]
+        pool = stronger or [n for n in dfg.nodes if codes[n.id] != EXACT[n.op]]
+        node = pool[rng.integers(len(pool))]
+        codes[node.id] = int(rng.choice(mild[node.op])) if stronger else EXACT[node.op]
+    return codes
+
+
+def random_start(dfg, units, level, error_fns, cap, seed):
+    rng = np.random.default_rng(seed)
+    codes = {node.id: int(rng.choice(units[level][node.op])) for node in dfg.nodes}
+    for error_fn in error_fns:
+        codes = step_down(dfg, codes, units["mild"], error_fn, cap, rng)
+    return codes
+
+
+def start_config(args, dfg, error_fn, cap):
     if args.start == "root":
         return {node.id: EXACT[node.op] for node in dfg.nodes}
-    if args.start == "random":
-        rng = np.random.default_rng(args.seed)
-        for _ in range(RANDOM_TRIES):
-            codes = random_config(dfg, rng)
-            if error_fn(codes) <= args.cap:
-                return codes
-        fail(f"no random configuration under {args.cap} % in {RANDOM_TRIES} draws")
     codes = load_start_file(args.start, dfg)
     rms = error_fn(codes)
-    if rms > args.cap:
-        fail(f"start configuration is already over the cap ({error_fn.name} RMS {rms:.3f} % > {args.cap} %)")
+    if rms > cap:
+        fail(f"start configuration is already over the cap ({error_fn.name} RMS {rms:.3f} % > {cap:g} %)")
     return codes
 
 
@@ -268,19 +291,21 @@ def search(error_fn, base, cap, budget, dfg, lib, areas, quiet):
     return result
 
 
-def multi_search(error_fn, base, cap, budget, seeds, dfg, lib, areas):
-    # one search per seed; the distinct results are the handoff candidates
+def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas):
+    # one search per seed from start_for(seed); the distinct results are the handoff candidates
     console.print(f"  evaluator    : [cyan]{error_fn.name}[/]   cap [yellow]{cap:.3f} %[/]   budget [cyan]{budget}[/] "
                   f"iterations x [cyan]{len(seeds)}[/] seeds")
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
     moves = variants(dfg, lib, areas)
-    candidates, iterations = {}, 0
+    candidates, iterations, start_areas = {}, 0, []
     with Timer() as timer:
         columns = (TextColumn("  {task.description}"), BarColumn(), MofNCompleteColumn(), TimeElapsedColumn())
         with Progress(*columns, console=progress_console, transient=True) as progress:
             task = progress.add_task(f"{error_fn.name} seeds", total=len(seeds))
             for seed in seeds:
+                base = start_for(seed)
+                start_areas.append(circuit_area(base, areas))
                 random.seed(seed)
                 r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn,
                              lambda codes: circuit_area(codes, areas), cap, budget)
@@ -297,6 +322,9 @@ def multi_search(error_fn, base, cap, budget, seeds, dfg, lib, areas):
               "budget": budget, "iterations": iterations, "seconds": timer.seconds, "evaluations": evals["calls"],
               "cache_hits": evals["hits"], "eval_seconds": evals["seconds"],
               "search_seconds": timer.seconds - evals["seconds"]}
+    if min(start_areas) < exact_area:
+        console.print(f"     starts save {(1 - max(start_areas) / exact_area) * 100:.1f} to "
+                      f"{(1 - min(start_areas) / exact_area) * 100:.1f} %")
     console.print(f"  -> {len(seeds)} seeds, {len(ranked)} distinct candidates: saving "
                   f"{ranked[-1]['saving_pct']:.1f} to {best['saving_pct']:.1f} %, model RMS "
                   f"{min(c['rms'] for c in ranked):.3f} to {max(c['rms'] for c in ranked):.3f} %")
@@ -305,6 +333,36 @@ def multi_search(error_fn, base, cap, budget, seeds, dfg, lib, areas):
                   f"tree search {duration(result['search_seconds'])})[/]")
     console.print()
     return result
+
+
+def pareto(candidates):
+    # smallest area first; a candidate is kept only if its model error is below that of every smaller one
+    front, lowest = [], float("inf")
+    for c in sorted(candidates, key=lambda c: c["area"]):
+        if c["rms"] < lowest:
+            front.append(c)
+            lowest = c["rms"]
+    return front
+
+
+def verify(candidates, sim, cap, max_sims, whole_front):
+    # simulate the Pareto front smallest area first; the first one under the cap is chosen
+    front = pareto(candidates)
+    console.print(f"  {len(candidates)} candidates, {len(front)} on the Pareto front (area vs model error)")
+    chosen = None
+    for i, cand in enumerate(front, 1):
+        if not whole_front and (chosen or i > max_sims):
+            break
+        with Timer() as t_one:
+            cand["sim_rms"] = sim(cand["codes"])
+        ok = cand["sim_rms"] <= cap
+        mark = "  [bold green]chosen[/]" if ok and not chosen else ""
+        console.print(f"  candidate {i:>2}: saving {cand['saving_pct']:5.1f} %   model [cyan]{cand['rms']:.3f} %[/]  ->  "
+                      f"simulated [cyan]{cand['sim_rms']:.3f} %[/]   {'[green]within cap[/]' if ok else '[red]over cap[/]'}"
+                      f"   {duration(t_one.seconds)}{mark}")
+        if ok and not chosen:
+            chosen = cand
+    return chosen, front
 
 
 def reduction(before, after):
@@ -419,19 +477,25 @@ def main():
                         help="MCTS iterations with simulation, or with the model in analytical and eem mode")
     parser.add_argument("--analytical-budget", type=int, default=2000,
                         help="MCTS iterations of the analytical phase in hybrid mode")
-    parser.add_argument("--margin", type=float, default=1.0,
-                        help="hybrid: the analytical phase searches under cap - margin (RMS %%)")
+    parser.add_argument("--margin", type=float,
+                        help="analytical and hybrid: the model searches under cap - margin (RMS %%; "
+                             "default 0 for analytical, 1 for hybrid)")
     parser.add_argument("--seeds", type=int,
-                        help="hybrid: analytical searches with seeds seed..seed+N-1, their results are the handoff "
+                        help="analytical and hybrid: searches with seeds seed..seed+N-1, their results are the "
                              "candidates (default 100)")
     parser.add_argument("--handoff-sims", type=int, default=10,
-                        help="hybrid: candidates simulated at most, smallest area first, until one is under the cap")
-    parser.add_argument("--start", default="root", help="root, random, FILE or FILE:NAME (default root)")
+                        help="analytical and hybrid: candidates simulated at most, smallest area first, "
+                             "until one is under the cap")
+    parser.add_argument("--verify-front", action="store_true",
+                        help="analytical and hybrid: simulate the whole Pareto front of the candidates")
+    parser.add_argument("--start", default="root", help="root, FILE or FILE:NAME (default root)")
+    parser.add_argument("--rand-start", nargs="?", const="mild", choices=("mild", "medium"),
+                        help="random start from the mild (default) or medium units, one per seed in analytical and hybrid")
     parser.add_argument("--samples", type=int, default=1_000_000,
                         help="simulation samples, in the search and the final check (default 1000000)")
     parser.add_argument("--depth", type=int, choices=(1, 2), default=2,
                         help="analytical feeder table depth (default 2; falls back to 1 without a depth-2 table)")
-    parser.add_argument("--seed", type=int, default=0, help="seed of the search and of --start random")
+    parser.add_argument("--seed", type=int, default=0, help="seed of the search and of --rand-start")
     parser.add_argument("--out", type=Path, help="result file (default results/dse/<benchmark>_<mode>.json)")
     parser.add_argument("--quiet", action="store_true", help="a progress bar instead of one line per iteration")
     parser.add_argument("--synth", action="store_true",
@@ -443,13 +507,21 @@ def main():
                         help="with --synth: set_max_delay in ns (default: script_sample.tcl for original, "
                              "synth.json for generated)")
     args = parser.parse_args()
-    if args.mode == "hybrid" and args.margin >= args.cap:
-        fail("--margin must be smaller than --cap")
-    if args.seeds is not None and args.mode != "hybrid":
-        fail("--seeds only applies with --mode hybrid")
+    searching = args.mode in ("analytical", "hybrid")
+    for flag, value in (("--seeds", args.seeds), ("--margin", args.margin)):
+        if value is not None and not searching:
+            fail(f"{flag} only applies with --mode analytical or hybrid")
+    if args.verify_front and not searching:
+        fail("--verify-front only applies with --mode analytical or hybrid")
     args.seeds = 100 if args.seeds is None else args.seeds
+    if args.margin is None:
+        args.margin = 1.0 if args.mode == "hybrid" else 0.0
+    if searching and not 0 <= args.margin < args.cap:
+        fail("--margin must be at least 0 and smaller than --cap")
     if args.seeds < 1 or args.handoff_sims < 1:
         fail("--seeds and --handoff-sims must be at least 1")
+    if args.rand_start and args.start != "root":
+        fail("--rand-start and --start FILE exclude each other")
     if args.max_delay is not None and not args.synth:
         fail("--max-delay only applies with --synth")
     synth_timing = None
@@ -472,7 +544,7 @@ def main():
     random.seed(args.seed)
 
     stages = ["Setup"]
-    stages += {"sim": ["Simulation search"], "analytical": ["Analytical search"],
+    stages += {"sim": ["Simulation search"], "analytical": ["Analytical search", "Verification"],
                "hybrid": ["Analytical search", "Handoff check", "Simulation search"], "eem": ["EEM search"]}[args.mode]
     stages += ["Final simulation"] + (["Synthesis"] if args.synth else [])
     stage_no = iter(range(1, len(stages) + 1))
@@ -512,11 +584,17 @@ def main():
                       f"analytical cap [yellow]{args.cap - args.margin:g} %[/]")
         seeds = f" x [cyan]{args.seeds}[/] seeds"
         console.print(f"  budget       : [cyan]{args.analytical_budget}[/] analytical{seeds} + [cyan]{args.budget}[/] "
-                      f"simulation iterations, up to [cyan]{args.handoff_sims}[/] handoff simulations")
+                      f"simulation iterations, up to [cyan]{'all' if args.verify_front else args.handoff_sims}[/] handoff simulations")
+    elif args.mode == "analytical":
+        margin = f"   margin [yellow]{args.margin} %[/]  ->  search cap [yellow]{args.cap - args.margin:g} %[/]" if args.margin else ""
+        console.print(f"  cap          : [yellow]{args.cap} %[/]{margin}")
+        console.print(f"  budget       : [cyan]{args.budget}[/] iterations x [cyan]{args.seeds}[/] seeds, up to "
+                      f"[cyan]{'all' if args.verify_front else args.handoff_sims}[/] verification simulations")
     else:
         console.print(f"  cap          : [yellow]{args.cap} %[/]")
         console.print(f"  budget       : [cyan]{args.budget}[/] iterations")
-    console.print(f"  start        : [cyan]{args.start}[/]   seed [cyan]{args.seed}[/]")
+    start_name = f"random {args.rand_start}" if args.rand_start else args.start
+    console.print(f"  start        : [cyan]{start_name}[/]   seed [cyan]{args.seed}[/]")
     console.print(f"  simulation   : [cyan]{args.samples:,}[/] samples (input seed {SEED_INPUTS})")
     console.print(f"  model        : {f'EEM ({EEM_ROOT})' if eem else source}")
     if eem and eem.fn.different:
@@ -526,9 +604,16 @@ def main():
     console.print()
 
     stage("Setup")
+    first = sim if args.mode == "sim" else estimator
+    search_cap = args.cap - args.margin if searching else args.cap
+    units = {"mild": start_units(lib, areas, 1 / 3), "medium": start_units(lib, areas, 2 / 3)}
+    checks = [estimator] if first is estimator else [estimator, first]
+
+    def start_for(seed):
+        return random_start(dfg, units, args.rand_start, checks, search_cap, seed)
+
     with Timer() as t_start:
-        first = sim if args.mode == "sim" else estimator
-        start = start_config(args, dfg, first)
+        start = start_for(args.seed) if args.rand_start else start_config(args, dfg, first, search_cap)
         start_rms = first(start)
     exact = {node.id: EXACT[node.op] for node in dfg.nodes}
     exact_area = circuit_area(exact, areas)
@@ -543,48 +628,33 @@ def main():
     console.print()
 
     phases = {}
+    verified = start
     if args.mode in ("analytical", "hybrid"):
         stage("Analytical search")
-        cap = args.cap - args.margin if args.mode == "hybrid" else args.cap
         budget = args.analytical_budget if args.mode == "hybrid" else args.budget
-        if args.mode == "hybrid":
-            seeds = range(args.seed, args.seed + args.seeds)
-            phases["analytical"] = multi_search(model, start, cap, budget, seeds, dfg, lib, areas)
-        else:
-            phases["analytical"] = search(model, start, cap, budget, dfg, lib, areas, args.quiet)
+        seeds = range(args.seed, args.seed + args.seeds)
+        per_seed = start_for if args.rand_start else lambda seed: start
+        phases["analytical"] = multi_search(model, per_seed, search_cap, budget, seeds, dfg, lib, areas)
         timing["analytical search"] = phases["analytical"]["seconds"]
 
-    base = start
-    if args.mode == "hybrid":
-        stage("Handoff check")
+        name = "Handoff check" if args.mode == "hybrid" else "Verification"
+        stage(name)
         found = phases["analytical"]
-        candidates = found.get("candidates") or [{"codes": found["codes"], "rms": found["rms"], "area": found["area"],
-                                                  "saving_pct": found["saving_pct"]}]
-        # smallest area first; the first one under the cap is handed over
-        tried, chosen = [], None
-        with Timer() as t_handoff:
-            for i, cand in enumerate(candidates[:args.handoff_sims], 1):
-                with Timer() as t_one:
-                    real = sim(cand["codes"])
-                tried.append({"area": cand["area"], "model_rms": cand["rms"], "sim_rms": real})
-                ok = real <= args.cap
-                console.print(f"  candidate {i:>2}: saving {cand['saving_pct']:5.1f} %   model [cyan]{cand['rms']:.3f} %[/]  ->  "
-                              f"simulated [cyan]{real:.3f} %[/]   {'[green]within cap[/]' if ok else '[red]over cap[/]'}   "
-                              f"{duration(t_one.seconds)}")
-                if ok:
-                    chosen = cand
-                    break
-        found["handoff"] = tried
-        if chosen:
-            base = chosen["codes"]
-            found["sim_rms"] = tried[-1]["sim_rms"]
-            console.print(f"  -> candidate {len(tried)} handed over: saving {chosen['saving_pct']:.1f} %, "
-                          f"simulated {tried[-1]['sim_rms']:.3f} %")
-        else:
-            console.print(f"  [yellow]none of {len(tried)} candidates is under the cap ({args.cap} %), "
-                          f"the simulation starts from the start configuration[/]")
-        timing["handoff check"] = t_handoff.seconds
+        with Timer() as t_verify:
+            chosen, front = verify(found["candidates"], sim, args.cap, args.handoff_sims, args.verify_front)
+            if chosen:
+                verified = chosen["codes"]
+            elif start != exact and sim(start) <= args.cap:
+                console.print(f"  [yellow]no simulated candidate is under the cap ({args.cap} %), the start configuration is used[/]")
+            else:
+                verified = exact
+                console.print(f"  [yellow]no simulated configuration is under the cap ({args.cap} %), the exact circuit is used[/]")
+        found["front"] = [{k: c.get(k) for k in ("area", "saving_pct", "rms", "sim_rms", "seed")} for c in front]
+        found["chosen"] = chosen and {k: chosen.get(k) for k in ("area", "saving_pct", "rms", "sim_rms", "seed")}
+        timing[name.lower()] = t_verify.seconds
         console.print()
+
+    base = verified if args.mode == "hybrid" else start
 
     if args.mode == "eem":
         stage("EEM search")
@@ -597,7 +667,7 @@ def main():
         timing["simulation search"] = phases["simulation"]["seconds"]
 
     stage("Final simulation")
-    final_codes = list(phases.values())[-1]["codes"]
+    final_codes = verified if args.mode == "analytical" else list(phases.values())[-1]["codes"]
     searched_rms = sim.cached(final_codes)
     with Timer() as t_final:
         final_rms = sim.fresh(final_codes)

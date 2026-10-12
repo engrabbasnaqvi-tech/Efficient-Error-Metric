@@ -31,7 +31,7 @@ python3 pipeline.py fir --mode eem --budget 500 --quiet
 | Mode | Error used in each search step |
 |---|---|
 | `sim` | simulation with my unit binaries (ground truth) |
-| `analytical` | my analytical model |
+| `analytical` | my analytical model, searching with many seeds; the results are simulated smallest area first, and the first one under the cap is the result |
 | `hybrid` | my model searches with many seeds under `cap - margin`; the results are simulated smallest area first, and simulation continues from the first one under the cap |
 | `eem` | your EEM model, called unchanged through `dse/eem.py` |
 
@@ -41,11 +41,13 @@ python3 pipeline.py fir --mode eem --budget 500 --quiet
 | `--cap` | 5 | error cap, RMS in % of the largest output |
 | `--budget` | 500 | MCTS iterations (the simulation phase in `hybrid`) |
 | `--analytical-budget` | 2000 | `hybrid`: iterations of the analytical phase |
-| `--margin` | 1.0 | `hybrid`: the analytical phase searches under `cap - margin` |
-| `--seeds` | 100 | `hybrid`: number of analytical searches (seeds); their results are the handoff candidates |
-| `--handoff-sims` | 10 | `hybrid`: candidates simulated at most, smallest area first, until one is under the cap |
-| `--start` | `root` | start configuration: `root` (all exact), `random`, `FILE` or `FILE:NAME` |
-| `--seed` | 0 | seed of the search |
+| `--margin` | 0 / 1.0 | `analytical` / `hybrid`: my model searches under `cap - margin` |
+| `--seeds` | 100 | `analytical`, `hybrid`: number of searches with my model; their results are the candidates |
+| `--handoff-sims` | 10 | `analytical`, `hybrid`: candidates simulated at most, smallest area first, until one is under the cap |
+| `--verify-front` | off | `analytical`, `hybrid`: simulate every candidate on the Pareto front, not only until one passes |
+| `--start` | `root` | start configuration: `root` (all exact), `FILE` or `FILE:NAME` |
+| `--rand-start` | off | random start from the `mild` (default) or `medium` units, see below |
+| `--seed` | 0 | seed of the search and of `--rand-start` |
 | `--samples` | 1000000 | simulation samples |
 | `--depth` | 2 | table depth of my model (falls back to 1 without a depth-2 table) |
 | `--synth` | off | synthesise the exact and the final configuration with Design Compiler |
@@ -81,6 +83,28 @@ So now hybrid works like this:
 On `adder_tree_32` the best candidate was just over the cap, the second one was
 under it with 77.8 % saving, so it took two simulations instead of starting
 over.
+
+`analytical` uses the same steps without the simulation search at the end, so
+its result is always verified under the cap too. Before simulating, candidates
+that have both more area and more error than another one are dropped (only the
+Pareto front is kept), so usually one or two simulations are enough.
+
+## Random start
+
+Starting from all exact, the search spends its first iterations on mild
+configurations that are under the cap anyway. With `--rand-start`, every node
+starts with a random unit from the mildest third of its units by library MSE
+(`medium`: two thirds). If that start is over the cap, random nodes step down
+to a mild unit, then to exact, until it is under. `analytical` and `hybrid` draw
+one start per seed.
+
+On `adder_tree_64` (cap 5 %, 100 seeds) a medium start with budget 100 found
+77.9 % saving in 2.3 s; from root, budget 500 found 75.2 % in 9.0 s. Each
+iteration costs a bit more from a random start, so use a smaller budget with it.
+
+```bash
+python3 pipeline.py adder_tree_64 --mode analytical --rand-start medium --budget 100 --quiet
+```
 
 ## What is where
 
