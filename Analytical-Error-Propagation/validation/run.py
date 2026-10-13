@@ -6,7 +6,14 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from model.data import DATA, load_benchmark, load_deep_table, load_library, read_json
+from model.data import (
+    D1,
+    DATA,
+    load_benchmark,
+    load_deep_table,
+    load_library,
+    read_json,
+)
 from model.propagate import compute_wire_max, propagate_circuit_scalar, scalar_rms
 from sim.simulate import EXACT
 
@@ -49,8 +56,8 @@ def compare(name, lib, range_libs, depth, worst=None, save=False, max_rms=None):
         truth["configs"] = [c for c in truth["configs"] if c["rms_pct"] <= max_rms]
     benchmark = truth["benchmark"]
     dfg = load_benchmark(benchmark)
-    node_lib = read_json(DATA / "node_metrics" / f"{benchmark}.json")
-    feeder_lib = read_json(DATA / "node_metrics" / f"{benchmark}_feeder.json")
+    node_lib = read_json(D1 / f"{benchmark}.json")
+    feeder_lib = read_json(D1 / f"{benchmark}_feeder.json")
     deep_lib = load_deep_table(benchmark) if depth == 2 else None
     wire_max = compute_wire_max(dfg)
     m_out = wire_max[dfg.output]

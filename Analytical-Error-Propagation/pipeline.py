@@ -32,6 +32,7 @@ from pathlib import Path
 
 import numpy as np
 from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -55,8 +56,15 @@ from area.synopsys_dc import (
 from dse.area import circuit_area, load_areas, variants
 from dse.eem import EEM_ROOT, eem_error
 from dse.mcts import run_mcts
-from model.data import DATA, load_benchmark, load_deep_table, load_library, read_json
-from model.propagate import compute_wire_max, propagate_circuit_scalar, scalar_rms
+from model.data import (
+    D1,
+    DATA,
+    load_benchmark,
+    load_deep_table,
+    load_library,
+    read_json,
+)
+from model.propagate import circuit_rms, compute_wire_max, propagate_circuit_scalar
 from sim.simulate import (
     EXACT,
     SEED_INPUTS,
@@ -150,8 +158,8 @@ def simulation_error(dfg, samples, m_out):
 
 
 def analytical_error(dfg, benchmark, depth, wire_max, lib):
-    node_lib = read_json(DATA / "node_metrics" / f"{benchmark}.json")
-    feeder_lib = read_json(DATA / "node_metrics" / f"{benchmark}_feeder.json")
+    node_lib = read_json(D1 / f"{benchmark}.json")
+    feeder_lib = read_json(D1 / f"{benchmark}_feeder.json")
     deep_lib = load_deep_table(benchmark) if depth == 2 else None
     if deep_lib:
         source = "node + depth-2 feeder tables"
@@ -175,7 +183,7 @@ def analytical_error(dfg, benchmark, depth, wire_max, lib):
     m_out = wire_max[dfg.output]
 
     def rms(codes):
-        return scalar_rms(propagate_circuit_scalar(dfg, codes, *tables)[dfg.output], m_out)
+        return circuit_rms(propagate_circuit_scalar(dfg, codes, *tables), dfg.output, m_out)
 
     return rms, source
 
@@ -345,14 +353,20 @@ def pareto(candidates):
     return front
 
 
-def verify(candidates, sim, cap, max_sims, whole_front):
-    # simulate the Pareto front smallest area first; the first one under the cap is chosen
+def verify(candidates, sim, cap, whole_front):
+    # simulate the Pareto front smallest area first, then the other candidates smallest area first;
+    # the first one under the cap is chosen
     front = pareto(candidates)
+    on_front = {id(c) for c in front}
+    order = front + sorted((c for c in candidates if id(c) not in on_front), key=lambda c: c["area"])
     console.print(f"  {len(candidates)} candidates, {len(front)} on the Pareto front (area vs model error)")
     chosen = None
-    for i, cand in enumerate(front, 1):
-        if not whole_front and (chosen or i > max_sims):
+    for i, cand in enumerate(order, 1):
+        keep_going = whole_front and i <= len(front)
+        if chosen and not keep_going:
             break
+        if i == len(front) + 1:
+            console.print("  no candidate on the front is under the cap, trying the others, smallest area first")
         with Timer() as t_one:
             cand["sim_rms"] = sim(cand["codes"])
         ok = cand["sim_rms"] <= cap
@@ -411,41 +425,23 @@ def synthesis(benchmark, exact, final, mode, max_delay, netlist, timing):
     return report
 
 
-def render_summary(args, phases, final, sim, estimator, timing, synth, total_seconds):
-    console.rule("[bold blue]SUMMARY[/]")
+# summary colours
+TITLE, HEADER, BORDER = "bold #d4a373", "bold #e6c9a8", "#8a7360"
+NAME, ERROR, GOOD, TIME = "#a3b18a", "#e9c46a", "#95c47a", "#c9a98a"
 
-    table = Table(box=box.SIMPLE_HEAVY, title="[bold]Search phases[/]")
-    for column in ("Phase", "Cap", "Iterations", "Evaluations", "Best RMS", "Library area", "Saving", "Time"):
-        table.add_column(column, justify="left" if column == "Phase" else "right")
-    for name, phase in phases.items():
-        table.add_row(name, f"{phase['cap']:.2f} %", str(phase["iterations"]), str(phase["evaluations"]),
-                      f"{phase['rms']:.3f} %", f"{phase['area']:.1f}", f"{phase['saving_pct']:.1f} %",
-                      duration(phase["seconds"]))
-    console.print(table)
 
-    table = Table(box=box.SIMPLE_HEAVY, title="[bold]Timing[/]")
-    for column in ("Stage", "Time", "Share"):
-        table.add_column(column, justify="left" if column == "Stage" else "right")
-    for name, seconds in timing.items():
-        table.add_row(name, duration(seconds), f"{seconds / total_seconds * 100:.1f} %")
-    table.add_section()
-    table.add_row("[bold]total[/]", f"[bold]{duration(total_seconds)}[/]", "100.0 %")
-    console.print(table)
+def divider():
+    console.print("─" * (console.width // 2), style="grey35", justify="center")
 
-    table = Table(box=box.SIMPLE_HEAVY, title="[bold]Error evaluators[/]")
-    for column in ("Evaluator", "Calls", "Cache hits", "Total time", "Mean per call"):
-        table.add_column(column, justify="left" if column == "Evaluator" else "right")
-    for ev in (sim, estimator):
-        mean = ev.mean()
-        table.add_row(ev.name, str(ev.calls), str(ev.hits), duration(ev.seconds), duration(mean) if mean else "-")
-    console.print(table)
-    if sim.mean() and estimator.mean():
-        ratio = sim.mean() / estimator.mean()
-        speed = f"[bold green]{ratio:,.0f}× faster[/]" if ratio >= 1 else f"[bold yellow]{1 / ratio:,.1f}× slower[/]"
-        console.print(f"{estimator.name} evaluation is {speed} than simulation ({duration(estimator.mean())} over "
-                      f"{estimator.calls} calls vs {duration(sim.mean())} over {sim.calls})")
 
-    console.print()
+def summary_table(title, columns):
+    table = Table(box=box.SIMPLE_HEAVY, title=f"[{TITLE}]{title}[/]", header_style=HEADER, border_style=BORDER)
+    for i, column in enumerate(columns):
+        table.add_column(column, justify="left" if i == 0 else "right", style=NAME if i == 0 else None)
+    return table
+
+
+def render_result(args, final, estimator, synth):
     within = final["sim_rms"] <= args.cap
     verdict = "[green]within cap[/]" if within else "[bold red]over cap[/]"
     console.print(f"final RMS (simulated)  : [bold]{final['sim_rms']:.3f} %[/]   cap {args.cap} %   {verdict}")
@@ -465,7 +461,43 @@ def render_summary(args, phases, final, sim, estimator, timing, synth, total_sec
     units = approximated(final["codes"], final["lib"])
     console.print(f"approximated units     : {len(units)} of {len(final['codes'])}")
     console.print(f"[dim]{', '.join(units) or '(none)'}[/]")
-    console.print(f"\ntotal time : [bold]{duration(total_seconds)}[/]")
+    console.print()
+
+
+def render_summary(args, phases, final, sim, estimator, timing, synth, total_seconds):
+    render_result(args, final, estimator, synth)
+    console.rule("[bold blue]SUMMARY[/]")
+
+    table = summary_table("Search phases", ("Phase", "Cap", "Iterations", "Evaluations", "Best RMS", "Library area",
+                                            "Saving", "Time"))
+    for name, phase in phases.items():
+        table.add_row(name, f"{phase['cap']:.2f} %", str(phase["iterations"]), str(phase["evaluations"]),
+                      f"[{ERROR}]{phase['rms']:.3f} %[/]", f"{phase['area']:.1f}",
+                      f"[{GOOD}]{phase['saving_pct']:.1f} %[/]", f"[{TIME}]{duration(phase['seconds'])}[/]")
+    console.print(Align.center(table))
+    divider()
+
+    table = summary_table("Timing", ("Stage", "Time", "Share"))
+    for name, seconds in timing.items():
+        table.add_row(name, f"[{TIME}]{duration(seconds)}[/]", f"{seconds / total_seconds * 100:.1f} %")
+    table.add_section()
+    table.add_row("[bold]total[/]", f"[bold {TIME}]{duration(total_seconds)}[/]", "100.0 %")
+    console.print(Align.center(table))
+    divider()
+
+    table = summary_table("Error evaluators", ("Evaluator", "Calls", "Cache hits", "Total time", "Mean per call"))
+    for ev in (sim, estimator):
+        mean = ev.mean()
+        table.add_row(ev.name, str(ev.calls), str(ev.hits), f"[{TIME}]{duration(ev.seconds)}[/]",
+                      f"[{TIME}]{duration(mean)}[/]" if mean else "-")
+    console.print(Align.center(table))
+    if sim.mean() and estimator.mean():
+        ratio = sim.mean() / estimator.mean()
+        speed = f"[bold {GOOD}]{ratio:,.0f}× faster[/]" if ratio >= 1 else f"[bold {ERROR}]{1 / ratio:,.1f}× slower[/]"
+        console.print(f"{estimator.name} evaluation is {speed} than simulation ({duration(estimator.mean())} over "
+                      f"{estimator.calls} calls vs {duration(sim.mean())} over {sim.calls})", justify="center")
+
+    console.print(f"[{NAME}]total time[/] : [bold {TIME}]{duration(total_seconds)}[/]", justify="center")
 
 
 def main():
@@ -483,9 +515,6 @@ def main():
     parser.add_argument("--seeds", type=int,
                         help="analytical and hybrid: searches with seeds seed..seed+N-1, their results are the "
                              "candidates (default 100)")
-    parser.add_argument("--handoff-sims", type=int, default=10,
-                        help="analytical and hybrid: candidates simulated at most, smallest area first, "
-                             "until one is under the cap")
     parser.add_argument("--verify-front", action="store_true",
                         help="analytical and hybrid: simulate the whole Pareto front of the candidates")
     parser.add_argument("--start", default="root", help="root, FILE or FILE:NAME (default root)")
@@ -504,8 +533,8 @@ def main():
                         help="with --synth: original = units substituted into *_original.v (default); "
                              "generated = netlist built from the DFG")
     parser.add_argument("--max-delay", type=float,
-                        help="with --synth: set_max_delay in ns (default: script_sample.tcl for original, "
-                             "synth.json for generated)")
+                        help="with --synth: set_max_delay in ns, overrides the benchmark's own delay "
+                             "(script_sample.tcl or synth.json)")
     args = parser.parse_args()
     searching = args.mode in ("analytical", "hybrid")
     for flag, value in (("--seeds", args.seeds), ("--margin", args.margin)):
@@ -518,8 +547,8 @@ def main():
         args.margin = 1.0 if args.mode == "hybrid" else 0.0
     if searching and not 0 <= args.margin < args.cap:
         fail("--margin must be at least 0 and smaller than --cap")
-    if args.seeds < 1 or args.handoff_sims < 1:
-        fail("--seeds and --handoff-sims must be at least 1")
+    if args.seeds < 1:
+        fail("--seeds must be at least 1")
     if args.rand_start and args.start != "root":
         fail("--rand-start and --start FILE exclude each other")
     if args.max_delay is not None and not args.synth:
@@ -584,12 +613,11 @@ def main():
                       f"analytical cap [yellow]{args.cap - args.margin:g} %[/]")
         seeds = f" x [cyan]{args.seeds}[/] seeds"
         console.print(f"  budget       : [cyan]{args.analytical_budget}[/] analytical{seeds} + [cyan]{args.budget}[/] "
-                      f"simulation iterations, up to [cyan]{'all' if args.verify_front else args.handoff_sims}[/] handoff simulations")
+                      "simulation iterations")
     elif args.mode == "analytical":
         margin = f"   margin [yellow]{args.margin} %[/]  ->  search cap [yellow]{args.cap - args.margin:g} %[/]" if args.margin else ""
         console.print(f"  cap          : [yellow]{args.cap} %[/]{margin}")
-        console.print(f"  budget       : [cyan]{args.budget}[/] iterations x [cyan]{args.seeds}[/] seeds, up to "
-                      f"[cyan]{'all' if args.verify_front else args.handoff_sims}[/] verification simulations")
+        console.print(f"  budget       : [cyan]{args.budget}[/] iterations x [cyan]{args.seeds}[/] seeds")
     else:
         console.print(f"  cap          : [yellow]{args.cap} %[/]")
         console.print(f"  budget       : [cyan]{args.budget}[/] iterations")
@@ -600,7 +628,9 @@ def main():
     if eem and eem.fn.different:
         console.print(f"  [yellow]EEM implements these units differently from the simulation: {', '.join(eem.fn.different)}[/]")
     console.print("  area         : unit area library" + (f" + Design Compiler at the end ([cyan]{args.netlist}[/] "
-                  f"netlist, {describe(synth_timing)})" if args.synth else " [dim](no synthesis)[/]"))
+                  f"netlist, {describe(synth_timing)}, "
+                  f"{'set by --max-delay' if args.max_delay is not None else 'benchmark default'})"
+                  if args.synth else " [dim](no synthesis)[/]"))
     console.print()
 
     stage("Setup")
@@ -641,7 +671,7 @@ def main():
         stage(name)
         found = phases["analytical"]
         with Timer() as t_verify:
-            chosen, front = verify(found["candidates"], sim, args.cap, args.handoff_sims, args.verify_front)
+            chosen, front = verify(found["candidates"], sim, args.cap, args.verify_front)
             if chosen:
                 verified = chosen["codes"]
             elif start != exact and sim(start) <= args.cap:

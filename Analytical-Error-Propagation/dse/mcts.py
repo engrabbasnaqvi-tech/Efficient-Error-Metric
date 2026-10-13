@@ -1,9 +1,8 @@
 import math
 import random
 
-# Reward of a configuration over the error cap. Milder than the original -5, so the search
-# keeps exploring near the cap instead of retreating from it.
-OVER_CAP_REWARD = -2.0
+# Reward of a configuration over the error cap, as in the Partitioning project.
+OVER_CAP_REWARD = -5.0
 
 
 class Node:

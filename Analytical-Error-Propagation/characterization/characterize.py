@@ -4,7 +4,7 @@ and, for adders, behind every pair of units that can feed it.
 
     python3 -m characterization.characterize <benchmark> [samples]
 
-Writes data/node_metrics/<benchmark>.json and data/node_metrics/<benchmark>_feeder.json.
+Writes data/node_metrics/d1/<benchmark>.json and data/node_metrics/d1/<benchmark>_feeder.json.
 """
 import json
 import sys
@@ -12,8 +12,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-from model.data import DATA, load_benchmark
-from sim.simulate import EXACT, UNITS, run_unit, sample_inputs
+from model.data import D1, DATA, load_benchmark
+from sim.simulate import EXACT, TABLE_UNITS, UNITS, run_unit, sample_inputs
 
 SEED = 1
 
@@ -39,7 +39,7 @@ def node_table(dfg, exact):
     for node in dfg.nodes:
         a, b = (exact[w] for w in node.inputs)
         table[node.id] = {
-            str(code): moments(run_unit(node.op, code, a, b) - exact[node.output]) for code in UNITS[node.op]
+            str(code): moments(run_unit(node.op, code, a, b) - exact[node.output]) for code in TABLE_UNITS[node.op]
         }
     return table
 
@@ -60,7 +60,7 @@ def feeder_values(dfg, exact, wire):
             memo[w] = run_unit(node.op, code if node.op == op else EXACT[node.op], a, b)
         return memo[w]
 
-    return {str(code): value(wire, code, {}) for code in [EXACT[op]] + UNITS[op]}
+    return {str(code): value(wire, code, {}) for code in [EXACT[op]] + TABLE_UNITS[op]}
 
 
 def feeder_table(dfg, exact):
@@ -89,8 +89,8 @@ def main():
 
     dfg = load_benchmark(benchmark)
     exact = exact_values(dfg, sample_inputs(dfg, n, SEED))
-    out_dir = DATA / "node_metrics"
-    out_dir.mkdir(exist_ok=True)
+    out_dir = D1
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{benchmark}.json").write_text(json.dumps(node_table(dfg, exact)))
     (out_dir / f"{benchmark}_feeder.json").write_text(json.dumps(feeder_table(dfg, exact)))
     print(f"{benchmark}: node tables written to {out_dir.relative_to(DATA.parent)}")

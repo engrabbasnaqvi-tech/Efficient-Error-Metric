@@ -1,5 +1,7 @@
 import math
 
+from sim.simulate import SAME_AS_EXACT
+
 from .models import BenchmarkDFG, ComponentVariant
 
 _ADDER_CANONICAL_RANGES = [2047, 4095, 8191, 16383, 32767, 65535]
@@ -9,6 +11,13 @@ _MUL_CANONICAL_RANGES = [255, 511, 1023, 2047, 4095, 8191, 16383, 32767, 65535]
 def scalar_rms(wire_state: dict[str, float], m_out: float = 1.0) -> float:
     """RMS error as a percentage of the maximum output value."""
     return math.sqrt(max(wire_state["mse"], 0.0)) / max(m_out, 1.0) * 100.0
+
+
+def circuit_rms(wire_states: dict[str, dict[str, float]], output: str, m_out: float = 1.0) -> float:
+    """RMS error of the output in %, or inf when the estimate is invalid (a negative MSE on some wire)."""
+    if any(state["mse"] < 0.0 for state in wire_states.values()):
+        return math.inf
+    return scalar_rms(wire_states[output], m_out)
 
 
 def compute_wire_max(dfg: BenchmarkDFG) -> dict[str, float]:
@@ -176,7 +185,9 @@ def propagate_circuit_scalar(
       feeder_lib[node]["code|feeder_a|feeder_b"]   adders (characterize)
       node_lib[node][code]                         (characterize)
       range-bucketed libraries
+    Units with the same results as the exact one (SAME_AS_EXACT) are propagated as the exact unit.
     """
+    codes = {nid: SAME_AS_EXACT.get(code, code) for nid, code in codes.items()}
     if wire_max is None:
         wire_max = compute_wire_max(dfg)
     wire_states = {inp: _input_wire_state(*dfg.input_ranges.get(inp, (0.0, 0.0))) for inp in dfg.inputs}

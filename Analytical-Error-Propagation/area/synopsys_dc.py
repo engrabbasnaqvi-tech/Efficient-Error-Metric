@@ -6,7 +6,7 @@ Area and power of a configuration, synthesised with Synopsys Design Compiler.
 
 The units are substituted into area/synth_template/<benchmark>/*_original.v and synthesised
 with the constraint of its script_sample.tcl, or, with --netlist generated, into a netlist built
-from the benchmark JSON with the set_max_delay of synth.json. Each run writes its netlist,
+from the benchmark JSON with the set_max_delay of synth.json, or of script_sample.tcl without it. Each run writes its netlist,
 script and reports to area/runs/<benchmark>_<tag>/.
 
 Design Compiler runs from the Apptainer image in SYNOPSYS_DC_IMAGE or area/synopsys_dc.sif.
@@ -50,11 +50,14 @@ def template(benchmark):
 
 
 def default_max_delay(benchmark):
-    # set_max_delay of a benchmark, from synth_template/<benchmark>/synth.json
+    # set_max_delay of a benchmark: synth_template/<benchmark>/synth.json, else the one of script_sample.tcl
     path = TEMPLATES / benchmark / "synth.json"
-    if not path.exists():
-        raise FileNotFoundError(f"no {path}: pass the delay explicitly or add the file")
-    return float(json.loads(path.read_text())["max_delay"])
+    if path.exists():
+        return float(json.loads(path.read_text())["max_delay"])
+    timing = template_constraint(benchmark)
+    if "max_delay" not in timing:
+        raise ValueError(f"{benchmark}: script_sample.tcl sets a clock, not set_max_delay; add {path} or pass the delay")
+    return timing["max_delay"]
 
 
 def original_netlist(benchmark):
@@ -217,7 +220,7 @@ def main():
     parser.add_argument("--netlist", choices=("original", "generated"), default="original",
                         help="original: units substituted into *_original.v (default); generated: built from the DFG")
     parser.add_argument("--max-delay", type=float,
-                        help="set_max_delay in ns (default: script_sample.tcl for original, synth.json for generated)")
+                        help="set_max_delay in ns (default: the benchmark's own, from script_sample.tcl or synth.json)")
     parser.add_argument("--dry-run", action="store_true", help="write the netlist and the script only")
     args = parser.parse_args()
 

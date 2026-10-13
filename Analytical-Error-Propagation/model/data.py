@@ -6,6 +6,8 @@ import numpy as np
 from .models import BenchmarkDFG, ComponentVariant
 
 DATA = Path(__file__).resolve().parents[1] / "data"
+D1 = DATA / "node_metrics" / "d1"
+D2 = DATA / "node_metrics" / "d2"
 
 
 def read_json(path):
@@ -36,13 +38,17 @@ def load_library():
 
 
 def load_deep_table(benchmark):
-    folder = DATA / "node_metrics" / f"{benchmark}_d2"
+    folder = D2 / f"{benchmark}_d2"
     meta = read_json(folder / "meta.json")
     if meta is None:
         return None
-    tables = {}
-    for node_id in meta["nodes"]:
-        if not np.load(folder / f"{node_id}_done.npy").all():
-            raise ValueError(f"{folder.name}/{node_id}: table incomplete, finish characterization/characterize_deep.py first")
-        tables[node_id] = np.load(folder / f"{node_id}.npy", mmap_mode="r")
+    # nodes with identical input cones share the table of the first one ("table" in meta.json)
+    loaded, tables = {}, {}
+    for node_id, node in meta["nodes"].items():
+        owner = node.get("table", node_id)
+        if owner not in loaded:
+            if not np.load(folder / f"{owner}_done.npy").all():
+                raise ValueError(f"{folder.name}/{owner}: table incomplete, finish characterization/characterize_deep.py first")
+            loaded[owner] = np.load(folder / f"{owner}.npy", mmap_mode="r")
+        tables[node_id] = loaded[owner]
     return meta, tables

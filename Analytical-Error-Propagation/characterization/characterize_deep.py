@@ -4,8 +4,10 @@ every unit on its feeders and every unit one level further upstream.
 
     python3 -m characterization.characterize_deep <benchmark> [--workers N] [--samples N] [--check N]
 
-Writes data/node_metrics/<benchmark>_d2/: meta.json and one <node>.npy per adder,
-shape (own unit, history a, history b, 4) with [E[dr], E[dr^2], E[d*dr], E[d]].
+Writes data/node_metrics/d2/<benchmark>_d2/: meta.json and one <node>.npy per class of adders,
+shape (own unit, history a, history b, 4) with [E[dr], E[dr^2], E[d*dr], E[d]]. Adders whose
+input cones are identical (structure, input order and input ranges) see the same operand
+distribution, so they share one table, recorded as "table" in meta.json.
 Progress is kept in <node>_done.npy, so an interrupted run resumes where it stopped.
 --check N computes N random entries and exits without building the table.
 """
@@ -25,9 +27,9 @@ from pathlib import Path
 
 import numpy as np
 
-from model.data import DATA, load_benchmark
+from model.data import D2, load_benchmark
 from model.propagate import history_index
-from sim.simulate import EXACT, UNITS, run_unit, sample_inputs
+from sim.simulate import EXACT, TABLE_UNITS, UNITS, run_unit, sample_inputs
 
 SEED = 1
 BATCH = 10
@@ -36,7 +38,7 @@ STATE = {}
 
 
 def codes_of(op):
-    return [EXACT[op]] + UNITS[op]
+    return [EXACT[op]] + TABLE_UNITS[op]
 
 
 def exact_values(dfg, inputs):
@@ -62,6 +64,24 @@ def cone_value(dfg, exact, wire, code):
         return memo[w]
 
     return value(wire)
+
+
+def table_owners(dfg):
+    """{adder id: id of the adder whose table it uses}, the first adder with an identical input cone."""
+    producer = {node.output: node for node in dfg.nodes}
+    memo, first, owner = {}, {}, {}
+
+    def cone(w):
+        if w not in memo:
+            node = producer.get(w)
+            memo[w] = (node.op, cone(node.inputs[0]), cone(node.inputs[1])) if node \
+                else ("in", tuple(dfg.input_ranges.get(w, (0, 0))))
+        return memo[w]
+
+    for node in dfg.nodes:
+        if node.op == "add":
+            owner[node.id] = first.setdefault(cone(node.output), node.id)
+    return owner
 
 
 def port_layout(dfg, wire):
@@ -151,7 +171,7 @@ def run_task(task):
 
 def prepare(benchmark, n):
     dfg = load_benchmark(benchmark)
-    out_dir = DATA / "node_metrics" / f"{benchmark}_d2"
+    out_dir = D2 / f"{benchmark}_d2"
     work_dir = out_dir / "work"
     work_dir.mkdir(parents=True, exist_ok=True)
     meta_path = out_dir / "meta.json"
@@ -161,18 +181,20 @@ def prepare(benchmark, n):
     exact = exact_values(dfg, sample_inputs(dfg, n, SEED))
     np.savez(work_dir / "exact.npz", **exact)
     producer = {node.output: node for node in dfg.nodes}
+    owner = table_owners(dfg)
     meta = {"benchmark": benchmark, "samples": n, "seed": SEED, "nodes": {}}
     for node in dfg.nodes:
         if node.op != "add":
             continue
-        ports = []
+        ports = [{"wire": wire, "dims": port_layout(dfg, wire)} for wire in node.inputs]
+        meta["nodes"][node.id] = {"inputs": list(node.inputs), "own": UNITS["add"], "ports": ports,
+                                  "table": owner[node.id]}
+        if owner[node.id] != node.id:
+            continue
         for wire in node.inputs:
-            layout = port_layout(dfg, wire)
             if wire in producer and not (work_dir / f"stream_{wire}.npy").exists():
                 port_streams(dfg, exact, wire, work_dir / f"stream_{wire}.npy")
-            ports.append({"wire": wire, "dims": layout})
         size = [int(np.prod([len(c) for _, c in p["dims"]])) if p["dims"] else 1 for p in ports]
-        meta["nodes"][node.id] = {"inputs": list(node.inputs), "own": UNITS["add"], "ports": ports}
         np.lib.format.open_memmap(out_dir / f"{node.id}.npy", mode="w+", dtype=np.float64,
                                   shape=(len(UNITS["add"]), size[0], size[1], 4)).flush()
         np.lib.format.open_memmap(out_dir / f"{node.id}_done.npy", mode="w+", dtype=bool, shape=(size[0],))[:] = False
@@ -184,7 +206,11 @@ def lookup(meta, tables, node_id, codes):
     """[E[dr], E[dr^2], E[d*dr], E[d]] of `node_id` under configuration `codes`."""
     node = meta["nodes"][node_id]
     ia, ib = (history_index(p, codes) for p in node["ports"])
-    return tables[node_id][node["own"].index(codes[node_id]), ia, ib]
+    return tables[node.get("table", node_id)][node["own"].index(codes[node_id]), ia, ib]
+
+
+def owners(meta):
+    return [node_id for node_id, node in meta["nodes"].items() if node.get("table", node_id) == node_id]
 
 
 def log(msg):
@@ -200,7 +226,7 @@ def check(benchmark, n, count, meta, work_dir):
     rng = np.random.default_rng(0)
     worst = 0.0
     for _ in range(count):
-        node_id = str(rng.choice(sorted(meta["nodes"])))
+        node_id = str(rng.choice(sorted(owners(meta))))
         node = meta["nodes"][node_id]
         codes = {nd.id: int(rng.choice(codes_of(nd.op))) for nd in dfg.nodes}
         codes[node_id] = int(rng.choice(UNITS["add"]))
@@ -242,13 +268,14 @@ def main():
         sys.exit(0 if worst < 1e-9 else 1)
 
     tasks, total_entries = [], 0
-    for node_id in meta["nodes"]:
+    for node_id in owners(meta):
         done = np.load(os.path.join(out_dir, f"{node_id}_done.npy"))
         tasks += [(node_id, int(i)) for i in np.flatnonzero(~done)]
         shape = np.load(os.path.join(out_dir, f"{node_id}.npy"), mmap_mode="r").shape
         total_entries += int(np.prod(shape[:3]))
     tasks.sort(key=lambda t: np.load(os.path.join(out_dir, f"{t[0]}.npy"), mmap_mode="r").shape[2])
-    log(f"{len(meta['nodes'])} adder nodes, {total_entries:,} entries, {len(tasks):,} tasks to do, {workers} workers")
+    log(f"{len(meta['nodes'])} adder nodes in {len(owners(meta))} tables, {total_entries:,} entries, "
+        f"{len(tasks):,} tasks to do, {workers} workers")
 
     start = time.time()
     with Pool(workers, initializer=init_worker, initargs=(str(meta_path), str(work_dir))) as pool:
@@ -258,7 +285,7 @@ def main():
                 eta = elapsed / k * (len(tasks) - k)
                 log(f"{k:,}/{len(tasks):,} tasks   elapsed {elapsed / 3600:.2f} h   eta {eta / 3600:.2f} h")
 
-    for node_id in meta["nodes"]:
+    for node_id in owners(meta):
         if not np.load(os.path.join(out_dir, f"{node_id}_done.npy")).all():
             sys.exit(f"{node_id}: incomplete")
     shutil.rmtree(work_dir)

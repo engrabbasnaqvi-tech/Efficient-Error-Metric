@@ -1,6 +1,9 @@
-Analytical-Error-Propagation/**/__pycache__/
+__pycache__/
+*.pyc
+.ruff_cache/
+Analytical-Error-Propagation/results/
 Analytical-Error-Propagation/sim/bin/
-Analytical-Error-Propagation/data/node_metrics/*_d2/
+Analytical-Error-Propagation/data/node_metrics/d2/
 Analytical-Error-Propagation/area/runs/
 Analytical-Error-Propagation/area/*.sif
 Analytical-Error-Propagation/area/synth_template/*/LIB/

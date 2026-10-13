@@ -5,12 +5,16 @@ import numpy as np
 
 BIN = Path(__file__).resolve().parent / "bin"
 EXACT = {"add": 0, "mul": 11}
-UNITS = {"add": list(range(2, 11)), "mul": list(range(13, 22))}
+UNITS = {"add": list(range(2, 11)), "mul": list(range(12, 22))}
+# units with the same results as the exact one in less area: mul16u_BMC is an exact 16-bit multiplier
+SAME_AS_EXACT = {12: 11}
+# units the model tables are measured for; the others are looked up as the exact unit
+TABLE_UNITS = {op: [code for code in codes if code not in SAME_AS_EXACT] for op, codes in UNITS.items()}
 SEED_INPUTS = 42
 
 
 def run_unit(op, code, a, b):
-    if code == EXACT[op]:
+    if SAME_AS_EXACT.get(code, code) == EXACT[op]:
         return a + b if op == "add" else a * b
     if op == "add":
         argv = [BIN / "inexact_adder_batch_16u", str(code)]
