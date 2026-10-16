@@ -1,26 +1,25 @@
 """
-Design space exploration with MCTS, using simulation, the analytical model, or both.
+Search for the configuration of approximate units with the smallest area under an error cap.
 
-    python3 pipeline.py <benchmark> --mode sim|analytical|hybrid|eem [options]
+  python3 pipeline.py <benchmark> --mode {sim,analytical,hybrid,eem} [options]
 
-Modes:
-    sim         every search step is simulated
-    analytical  the analytical model searches once per seed (--seeds); the results are simulated
-                smallest area first, and the first one under the cap is the result
-    hybrid      the analytical model searches first, once per seed (--seeds), with the cap lowered
-                by --margin; its results are simulated smallest area first, and the simulation
-                continues the search from the first one under the cap
-    eem         every search step uses the EEM model (../EEM/EEM, or EEM_PATH)
+An MCTS picks a unit for every adder and multiplier of the benchmark. The mode decides where
+the error of each configuration comes from:
 
-Start configuration (--start):
-    root        all units exact (default)
-    FILE        a JSON file with a codes dict, {"codes": {...}}, or a list of named
-    FILE:NAME   configurations ("configs"), from which NAME is picked
+  sim         simulation
+  analytical  the analytical model; the search runs once per seed, and the candidates are
+              simulated (Pareto front first, then smallest area first) until one is under the cap
+  hybrid      like analytical, but under cap - margin; the simulation search then continues
+              from the first candidate that is under the cap
+  eem         the EEM model (../EEM/EEM, or set EEM_PATH)
 
-Random start (--rand-start mild|medium):
-    every node gets a random unit from the mildest third (mild) or two thirds (medium) of its
-    units by library MSE; while over the cap, random nodes step down to a mild unit, then to
-    exact. Analytical and hybrid draw one start per seed.
+The final configuration is always simulated, so its real error is reported. The result JSON
+and the terminal log go to results/dse/.
+
+examples:
+  python3 pipeline.py fir --mode sim --budget 500 --quiet
+  python3 pipeline.py adder_tree_64 --mode analytical --rand-start medium --budget 100 --quiet
+  python3 pipeline.py fir_n25 --mode hybrid --budget 500 --margin 1 --synth --quiet
 """
 import argparse
 import json
@@ -157,6 +156,7 @@ def simulation_error(dfg, samples, m_out):
     return rms
 
 
+
 def analytical_error(dfg, benchmark, depth, wire_max, lib):
     node_lib = read_json(D1 / f"{benchmark}.json")
     feeder_lib = read_json(D1 / f"{benchmark}_feeder.json")
@@ -188,34 +188,6 @@ def analytical_error(dfg, benchmark, depth, wire_max, lib):
     return rms, source
 
 
-def load_start_file(spec, dfg):
-    path, _, name = spec.partition(":")
-    data = read_json(Path(path))
-    if data is None:
-        fail(f"start file {path} not found")
-    if name:
-        configs = data.get("configs")
-        if isinstance(configs, list):
-            configs = {c["name"]: c["codes"] for c in configs}
-        if not configs or name not in configs:
-            fail(f"no configuration named {name!r} in {path}")
-        codes = configs[name]
-    else:
-        codes = data.get("codes", data)
-
-    ops = {node.id: node.op for node in dfg.nodes}
-    unknown = set(codes) - set(ops)
-    if unknown:
-        fail(f"start configuration names unknown nodes: {', '.join(sorted(unknown))}")
-    start = {nid: EXACT[op] for nid, op in ops.items()}
-    for nid, code in codes.items():
-        code = int(code)
-        if code != EXACT[ops[nid]] and code not in UNITS[ops[nid]]:
-            fail(f"start configuration: code {code} is not a {ops[nid]} unit ({nid})")
-        start[nid] = code
-    return start
-
-
 def start_units(lib, areas, share):
     # per op, the mildest share of the units smaller than the exact one, by library MSE
     units = {}
@@ -240,16 +212,6 @@ def random_start(dfg, units, level, error_fns, cap, seed):
     codes = {node.id: int(rng.choice(units[level][node.op])) for node in dfg.nodes}
     for error_fn in error_fns:
         codes = step_down(dfg, codes, units["mild"], error_fn, cap, rng)
-    return codes
-
-
-def start_config(args, dfg, error_fn, cap):
-    if args.start == "root":
-        return {node.id: EXACT[node.op] for node in dfg.nodes}
-    codes = load_start_file(args.start, dfg)
-    rms = error_fn(codes)
-    if rms > cap:
-        fail(f"start configuration is already over the cap ({error_fn.name} RMS {rms:.3f} % > {cap:g} %)")
     return codes
 
 
@@ -502,39 +464,56 @@ def render_summary(args, phases, final, sim, estimator, timing, synth, total_sec
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("benchmark")
-    parser.add_argument("--mode", choices=("sim", "analytical", "hybrid", "eem"), required=True)
-    parser.add_argument("--cap", type=float, default=5.0, help="RMS error cap in %% of the maximum output (default 5)")
-    parser.add_argument("--budget", type=int, default=500,
-                        help="MCTS iterations with simulation, or with the model in analytical and eem mode")
-    parser.add_argument("--analytical-budget", type=int, default=2000,
-                        help="MCTS iterations of the analytical phase in hybrid mode")
-    parser.add_argument("--margin", type=float,
-                        help="analytical and hybrid: the model searches under cap - margin (RMS %%; "
-                             "default 0 for analytical, 1 for hybrid)")
-    parser.add_argument("--seeds", type=int,
-                        help="analytical and hybrid: searches with seeds seed..seed+N-1, their results are the "
-                             "candidates (default 100)")
-    parser.add_argument("--verify-front", action="store_true",
-                        help="analytical and hybrid: simulate the whole Pareto front of the candidates")
-    parser.add_argument("--start", default="root", help="root, FILE or FILE:NAME (default root)")
-    parser.add_argument("--rand-start", nargs="?", const="mild", choices=("mild", "medium"),
-                        help="random start from the mild (default) or medium units, one per seed in analytical and hybrid")
-    parser.add_argument("--samples", type=int, default=1_000_000,
-                        help="simulation samples, in the search and the final check (default 1000000)")
-    parser.add_argument("--depth", type=int, choices=(1, 2), default=2,
-                        help="analytical feeder table depth (default 2; falls back to 1 without a depth-2 table)")
-    parser.add_argument("--seed", type=int, default=0, help="seed of the search and of --rand-start")
-    parser.add_argument("--out", type=Path, help="result file (default results/dse/<benchmark>_<mode>.json)")
-    parser.add_argument("--quiet", action="store_true", help="a progress bar instead of one line per iteration")
-    parser.add_argument("--synth", action="store_true",
-                        help="synthesise the exact and the final configuration with Design Compiler at the end")
-    parser.add_argument("--netlist", choices=("original", "generated"), default="original",
-                        help="with --synth: original = units substituted into *_original.v (default); "
-                             "generated = netlist built from the DFG")
-    parser.add_argument("--max-delay", type=float,
-                        help="with --synth: set_max_delay in ns, overrides the benchmark's own delay "
-                             "(script_sample.tcl or synth.json)")
+    parser.add_argument("benchmark", help="benchmark name, e.g. fir, fir_n25, adder_tree_64, mac_n10")
+    parser.add_argument("--mode", choices=("sim", "analytical", "hybrid", "eem"), required=True,
+                        help="where the error of each search step comes from (see above)")
+
+    group = parser.add_argument_group("search")
+    group.add_argument("--cap", type=float, default=5.0, metavar="PCT",
+                       help="error cap: RMS error in %% of the largest output (default: 5)")
+    group.add_argument("--budget", type=int, default=500, metavar="N",
+                       help="MCTS iterations, per search in analytical; in hybrid, those of the simulation "
+                            "search (default: 500)")
+    group.add_argument("--rand-start", nargs="?", const="mild", choices=("mild", "medium"),
+                       help="start from random units instead of all exact: the mildest third of each "
+                            "node's units (mild, the default) or two thirds (medium), stepped down until "
+                            "under the cap")
+    group.add_argument("--seed", type=int, default=0, metavar="N",
+                       help="seed of the search and the random start (default: 0)")
+
+    group = parser.add_argument_group("analytical and hybrid")
+    group.add_argument("--seeds", type=int, metavar="N",
+                       help="number of searches with the model, one per seed; their results are the "
+                            "candidates (default: 100)")
+    group.add_argument("--analytical-budget", type=int, default=2000, metavar="N",
+                       help="hybrid: MCTS iterations of each model search (default: 2000)")
+    group.add_argument("--margin", type=float, metavar="PCT",
+                       help="the model searches under cap - margin (default: 0 in analytical, 1 in hybrid)")
+    group.add_argument("--verify-front", action="store_true",
+                       help="simulate the whole Pareto front of the candidates, not only until one passes")
+
+    group = parser.add_argument_group("error")
+    group.add_argument("--samples", type=int, default=1_000_000, metavar="N",
+                       help="simulation samples (default: 1000000)")
+    group.add_argument("--depth", type=int, choices=(1, 2), default=2,
+                       help="table depth of the analytical model; falls back to 1 without a depth-2 "
+                            "table (default: 2)")
+
+    group = parser.add_argument_group("synthesis")
+    group.add_argument("--synth", action="store_true",
+                       help="synthesise the exact and the final configuration with Design Compiler")
+    group.add_argument("--netlist", choices=("original", "generated"), default="original",
+                       help="original: the benchmark's hand-written Verilog with the units swapped in "
+                            "(default); generated: a netlist built from the benchmark JSON")
+    group.add_argument("--max-delay", type=float, metavar="NS",
+                       help="timing constraint in ns (default: the benchmark's own, from "
+                            "script_sample.tcl or synth.json)")
+
+    group = parser.add_argument_group("output")
+    group.add_argument("--out", type=Path, metavar="FILE",
+                       help="result JSON, the log goes next to it (default: results/dse/<benchmark>_<mode>.json)")
+    group.add_argument("--quiet", action="store_true",
+                       help="a progress bar instead of one line per iteration")
     args = parser.parse_args()
     searching = args.mode in ("analytical", "hybrid")
     for flag, value in (("--seeds", args.seeds), ("--margin", args.margin)):
@@ -549,8 +528,6 @@ def main():
         fail("--margin must be at least 0 and smaller than --cap")
     if args.seeds < 1:
         fail("--seeds must be at least 1")
-    if args.rand_start and args.start != "root":
-        fail("--rand-start and --start FILE exclude each other")
     if args.max_delay is not None and not args.synth:
         fail("--max-delay only applies with --synth")
     synth_timing = None
@@ -621,7 +598,7 @@ def main():
     else:
         console.print(f"  cap          : [yellow]{args.cap} %[/]")
         console.print(f"  budget       : [cyan]{args.budget}[/] iterations")
-    start_name = f"random {args.rand_start}" if args.rand_start else args.start
+    start_name = f"random {args.rand_start}" if args.rand_start else "all exact"
     console.print(f"  start        : [cyan]{start_name}[/]   seed [cyan]{args.seed}[/]")
     console.print(f"  simulation   : [cyan]{args.samples:,}[/] samples (input seed {SEED_INPUTS})")
     console.print(f"  model        : {f'EEM ({EEM_ROOT})' if eem else source}")
@@ -642,10 +619,10 @@ def main():
     def start_for(seed):
         return random_start(dfg, units, args.rand_start, checks, search_cap, seed)
 
-    with Timer() as t_start:
-        start = start_for(args.seed) if args.rand_start else start_config(args, dfg, first, search_cap)
-        start_rms = first(start)
     exact = {node.id: EXACT[node.op] for node in dfg.nodes}
+    with Timer() as t_start:
+        start = start_for(args.seed) if args.rand_start else dict(exact)
+        start_rms = first(start)
     exact_area = circuit_area(exact, areas)
     console.print(f"  load benchmark and libraries : {duration(t_load.seconds)}")
     console.print(f"  analytical tables            : {duration(t_model.seconds)}")

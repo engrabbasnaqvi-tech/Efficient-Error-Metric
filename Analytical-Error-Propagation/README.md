@@ -44,8 +44,7 @@ python3 pipeline.py fir --mode eem --budget 500 --quiet
 | `--margin` | 0 / 1.0 | `analytical` / `hybrid`: my model searches under `cap - margin` |
 | `--seeds` | 100 | `analytical`, `hybrid`: number of searches with my model; their results are the candidates |
 | `--verify-front` | off | `analytical`, `hybrid`: simulate every candidate on the Pareto front, not only until one passes |
-| `--start` | `root` | start configuration: `root` (all exact), `FILE` or `FILE:NAME` |
-| `--rand-start` | off | random start from the `mild` (default) or `medium` units, see below |
+| `--rand-start` | off (all exact) | random start from the `mild` (default) or `medium` units, see below |
 | `--seed` | 0 | seed of the search and of `--rand-start` |
 | `--samples` | 1000000 | simulation samples |
 | `--depth` | 2 | table depth of my model (falls back to 1 without a depth-2 table) |
