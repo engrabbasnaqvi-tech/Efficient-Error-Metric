@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .ruff_cache/
+Analytical-Error-Propagation/vm
 Analytical-Error-Propagation/results/
 Analytical-Error-Propagation/sim/bin/
 Analytical-Error-Propagation/data/node_metrics/d2/
