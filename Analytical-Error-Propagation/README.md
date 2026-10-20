@@ -7,10 +7,11 @@ both, or your EEM model.
 
 ## Setup
 
-Python 3 with `numpy`, `pydantic` and `rich`, plus `gcc`/`g++`. Run everything
-from this folder.
+Python 3 with the packages in `requirements.txt`, plus `gcc`/`g++`. Run
+everything from this folder.
 
 ```bash
+pip install -r requirements.txt
 sh sim/build.sh      # builds my unit binaries into sim/bin, once per machine
 ```
 
@@ -110,6 +111,7 @@ python3 pipeline.py adder_tree_64 --mode analytical --rand-start medium --budget
 
 ```
 pipeline.py         the DSE
+pipeline_console.py its terminal output
 dse/mcts.py         the MCTS (from the Partitioning project), over-cap reward -5
 dse/eem.py          converts a benchmark and configuration for your EEM model
 dse/lib/            area of every unit, used during the search

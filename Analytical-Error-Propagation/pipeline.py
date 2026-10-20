@@ -30,17 +30,6 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from pathlib import Path
 
 import numpy as np
-from rich import box
-from rich.align import Align
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    TextColumn,
-    TimeElapsedColumn,
-)
-from rich.table import Table
 
 from area.netlist import rewrite_original
 from area.synopsys_dc import (
@@ -64,6 +53,7 @@ from model.data import (
     read_json,
 )
 from model.propagate import circuit_rms, compute_wire_max, propagate_circuit_scalar
+from pipeline_console import PipelineConsole
 from sim.simulate import (
     EXACT,
     SEED_INPUTS,
@@ -73,24 +63,11 @@ from sim.simulate import (
 )
 
 RESULTS = Path(__file__).resolve().parent / "results" / "dse"
-console = Console(record=True)
-progress_console = Console(stderr=True)  # keeps the progress bar out of the log
-
-
-def duration(seconds):
-    if seconds < 1e-3:
-        return f"{seconds * 1e6:.1f} µs"
-    if seconds < 1:
-        return f"{seconds * 1e3:.1f} ms"
-    if seconds < 60:
-        return f"{seconds:.2f} s"
-    if seconds < 3600:
-        return f"{seconds / 60:.1f} min"
-    return f"{seconds / 3600:.2f} h"
+ui = PipelineConsole()
 
 
 def fail(message):
-    console.print(f"[bold red]error:[/] {message}")
+    ui.error(message)
     sys.exit(1)
 
 
@@ -168,9 +145,9 @@ def analytical_error(dfg, benchmark, depth, wire_max, lib):
     elif node_lib:
         source = "node tables"
     else:
-        source = f"range libraries [yellow](no node tables, run python3 -m characterization.characterize {benchmark})[/]"
+        source = f"range libraries (no node tables, run python3 -m characterization.characterize {benchmark})"
     if depth == 2 and deep_lib is None:
-        source += f" [yellow](no {benchmark}_d2 table, using depth 1)[/]"
+        source += f" (no {benchmark}_d2 table, using depth 1)"
     tables = (
         lib,
         read_json(DATA / "adder_range_metrics.json"),
@@ -215,57 +192,26 @@ def random_start(dfg, units, level, error_fns, cap, seed):
     return codes
 
 
-def approximated(codes, lib):
-    return [f"{nid}={lib[code].name}" for nid, code in codes.items() if code != EXACT[lib[code].op]]
-
-
 def search(error_fn, base, cap, budget, dfg, lib, areas, quiet):
-    console.print(f"  evaluator    : [cyan]{error_fn.name}[/]   cap [yellow]{cap:.3f} %[/]   budget [cyan]{budget}[/] iterations")
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
-
-    def line(it, child, best):
-        move = f"{child.node_id}={child.name}"
-        if child.dead:
-            status = f"[red]RMS {child.rms:7.3f} %  over cap[/]"
-        else:
-            status = f"[green]RMS {child.rms:7.3f} %[/]  area {child.area:9.1f}"
-        mark = "  [bold green]new best[/]" if best is child else ""
-        console.print(f"  [dim]iter {it:>6}  level {child.level:>3}[/]  {status}  [dim]{move}[/]{mark}")
-
-    with Timer() as timer:
-        if quiet:
-            columns = (TextColumn("  {task.description}"), BarColumn(), MofNCompleteColumn(), TimeElapsedColumn())
-            with Progress(*columns, console=progress_console, transient=True) as progress:
-                task = progress.add_task(error_fn.name, total=budget + 1)
-                result = run_mcts([n.id for n in dfg.nodes], variants(dfg, lib, areas), base, error_fn,
-                                  lambda codes: circuit_area(codes, areas), cap, budget,
-                                  on_step=lambda it, child, best: progress.update(task, completed=it + 1))
-        else:
-            result = run_mcts([n.id for n in dfg.nodes], variants(dfg, lib, areas), base, error_fn,
-                              lambda codes: circuit_area(codes, areas), cap, budget, on_step=line)
-
+    with Timer() as timer, ui.search(error_fn, budget, exact_area, quiet) as step:
+        result = run_mcts([n.id for n in dfg.nodes], variants(dfg, lib, areas), base, error_fn,
+                          lambda codes: circuit_area(codes, areas), cap, budget, on_step=step)
     evals = error_fn.since(snap)
     result.update(evaluator=error_fn.name, cap=cap, budget=budget, seconds=timer.seconds,
                   evaluations=evals["calls"], cache_hits=evals["hits"], eval_seconds=evals["seconds"],
                   search_seconds=timer.seconds - evals["seconds"],
                   saving_pct=(1 - result["area"] / exact_area) * 100)
-    mean = evals["seconds"] / evals["calls"] if evals["calls"] else 0.0
-    console.print(f"  -> best RMS [green]{result['rms']:.3f} %[/] ({error_fn.name})   library area "
-                  f"[cyan]{result['area']:.1f}[/] ([green]{result['saving_pct']:.1f} %[/] saved)")
-    console.print(f"     {result['iterations']} iterations, {result['evaluations']} evaluations, "
-                  f"{result['cache_hits']} cache hits   [bold]{duration(timer.seconds)}[/] "
-                  f"[dim](evaluation {duration(evals['seconds'])}, mean {duration(mean)} · "
-                  f"tree search {duration(result['search_seconds'])})[/]")
-    console.print()
     return result
 
 
-def seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget):
+def seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget, on_step=None):
     # one model search from start_for(seed)
     base = start_for(seed)
     random.seed(seed)
-    r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn, lambda codes: circuit_area(codes, areas), cap, budget)
+    r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn, lambda codes: circuit_area(codes, areas), cap, budget,
+                 on_step=on_step)
     return {"seed": seed, "codes": r["codes"], "rms": r["rms"], "area": r["area"], "iterations": r["iterations"],
             "start_area": circuit_area(base, areas)}
 
@@ -295,36 +241,33 @@ def worker_seed_search(seed, budget):
 def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas, jobs=1, worker_args=None):
     # one search per seed from start_for(seed); the distinct results are the handoff candidates.
     # With jobs > 1 the seeds run in that many processes, set up by init_seed_worker(*worker_args)
-    console.print(f"  evaluator    : [cyan]{error_fn.name}[/]   cap [yellow]{cap:.3f} %[/]   budget [cyan]{budget}[/] "
-                  f"iterations x [cyan]{len(seeds)}[/] seeds" + (f" in [cyan]{jobs}[/] processes" if jobs > 1 else ""))
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
     moves = variants(dfg, lib, areas)
     candidates, iterations, start_areas = {}, 0, []
-    with Timer() as timer:
-        columns = (TextColumn("  {task.description}"), BarColumn(), MofNCompleteColumn(), TimeElapsedColumn())
-        with Progress(*columns, console=progress_console, transient=True) as progress:
-            task = progress.add_task(f"{error_fn.name} seeds", total=len(seeds))
-            if jobs > 1:
-                with ProcessPoolExecutor(jobs, initializer=init_seed_worker, initargs=worker_args) as pool:
-                    futures = [pool.submit(worker_seed_search, seed, budget) for seed in seeds]
-                    for future in as_completed(futures):
-                        progress.update(task, advance=1)
-                    results = [future.result() for future in futures]
-                for r in results:
-                    error_fn.calls += r["evals"]["calls"]
-                    error_fn.hits += r["evals"]["hits"]
-                    error_fn.seconds += r["evals"]["seconds"]
-            else:
-                results = []
-                for seed in seeds:
-                    results.append(seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget))
-                    progress.update(task, advance=1)
+    with Timer() as timer, ui.seeds(seeds, budget, jobs) as (step, done):
+        if jobs > 1:
+            with ProcessPoolExecutor(jobs, initializer=init_seed_worker, initargs=worker_args) as pool:
+                futures = {pool.submit(worker_seed_search, seed, budget): seed for seed in seeds}
+                for future in as_completed(futures):
+                    done(futures[future])
+                results = [future.result() for future in futures]
             for r in results:
-                start_areas.append(r["start_area"])
-                iterations += r["iterations"]
-                candidates.setdefault(tuple(sorted(r["codes"].items())),
-                                      {"codes": r["codes"], "rms": r["rms"], "area": r["area"], "seed": r["seed"]})
+                error_fn.calls += r["evals"]["calls"]
+                error_fn.hits += r["evals"]["hits"]
+                error_fn.seconds += r["evals"]["seconds"]
+        else:
+            results = []
+            for seed in seeds:
+                def progress(it, child, best, seed=seed):
+                    step(seed, it, best and ((1 - best.area / exact_area) * 100, best.rms))
+                results.append(seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget, progress))
+                done(seed)
+        for r in results:
+            start_areas.append(r["start_area"])
+            iterations += r["iterations"]
+            candidates.setdefault(tuple(sorted(r["codes"].items())),
+                                  {"codes": r["codes"], "rms": r["rms"], "area": r["area"], "seed": r["seed"]})
     ranked = sorted(candidates.values(), key=lambda c: c["area"])
     for c in ranked:
         c["saving_pct"] = (1 - c["area"] / exact_area) * 100
@@ -334,17 +277,7 @@ def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas, jobs=
               "budget": budget, "iterations": iterations, "seconds": timer.seconds, "evaluations": evals["calls"],
               "cache_hits": evals["hits"], "eval_seconds": evals["seconds"], "jobs": jobs,
               "search_seconds": timer.seconds - evals["seconds"] if jobs == 1 else None}
-    if min(start_areas) < exact_area:
-        console.print(f"     starts save {(1 - max(start_areas) / exact_area) * 100:.1f} to "
-                      f"{(1 - min(start_areas) / exact_area) * 100:.1f} %")
-    console.print(f"  -> {len(seeds)} seeds, {len(ranked)} distinct candidates: saving "
-                  f"{ranked[-1]['saving_pct']:.1f} to {best['saving_pct']:.1f} %, model RMS "
-                  f"{min(c['rms'] for c in ranked):.3f} to {max(c['rms'] for c in ranked):.3f} %")
-    split = (f"evaluation {duration(evals['seconds'])} · tree search {duration(result['search_seconds'])}" if jobs == 1
-             else f"{jobs} processes, evaluation {duration(evals['seconds'])} summed over them")
-    console.print(f"     {iterations} iterations, {evals['calls']} evaluations, {evals['hits']} cache hits   "
-                  f"[bold]{duration(timer.seconds)}[/] [dim]({split})[/]")
-    console.print()
+    ui.analytical(result, [(1 - a / exact_area) * 100 for a in start_areas])
     return result
 
 
@@ -364,23 +297,20 @@ def verify(candidates, sim, cap, whole_front):
     front = pareto(candidates)
     on_front = {id(c) for c in front}
     order = front + sorted((c for c in candidates if id(c) not in on_front), key=lambda c: c["area"])
-    console.print(f"  {len(candidates)} candidates, {len(front)} on the Pareto front (area vs model error)")
     chosen = None
-    for i, cand in enumerate(order, 1):
-        keep_going = whole_front and i <= len(front)
-        if chosen and not keep_going:
-            break
-        if i == len(front) + 1:
-            console.print("  no candidate on the front is under the cap, trying the others, smallest area first")
-        with Timer() as t_one:
-            cand["sim_rms"] = sim(cand["codes"])
-        ok = cand["sim_rms"] <= cap
-        mark = "  [bold green]chosen[/]" if ok and not chosen else ""
-        console.print(f"  candidate {i:>2}: saving {cand['saving_pct']:5.1f} %   model [cyan]{cand['rms']:.3f} %[/]  ->  "
-                      f"simulated [cyan]{cand['sim_rms']:.3f} %[/]   {'[green]within cap[/]' if ok else '[red]over cap[/]'}"
-                      f"   {duration(t_one.seconds)}{mark}")
-        if ok and not chosen:
-            chosen = cand
+    with ui.candidates(cap) as (add, note):
+        for i, cand in enumerate(order, 1):
+            keep_going = whole_front and i <= len(front)
+            if chosen and not keep_going:
+                break
+            if i == len(front) + 1:
+                note("rest, smallest area first")
+            with Timer() as t_one:
+                cand["sim_rms"] = sim(cand["codes"])
+            ok = cand["sim_rms"] <= cap
+            add(cand, ok and not chosen, t_one.seconds)
+            if ok and not chosen:
+                chosen = cand
     return chosen, front
 
 
@@ -389,26 +319,11 @@ def reduction(before, after):
 
 
 def synthesis(benchmark, exact, final, mode, max_delay, netlist, timing):
-    console.print(f"  netlist      : [cyan]{netlist}[/]   {describe(timing)}   two Design Compiler runs in parallel")
     jobs = {"exact": (exact, f"{mode}_exact"), "final": (final, f"{mode}_final")}
-    with progress_console.status("  running Design Compiler ..."), ThreadPoolExecutor(len(jobs)) as pool:
+    with ui.working("Design Compiler: exact and final circuit", "orange"), ThreadPoolExecutor(len(jobs)) as pool:
         futures = {name: pool.submit(synthesise, benchmark, codes, tag, max_delay, netlist)
                    for name, (codes, tag) in jobs.items()}
         runs = {name: future.result() for name, future in futures.items()}
-
-    table = Table(box=box.SIMPLE_HEAVY)
-    for column in ("Config", "Total area", "Cell area", "Power", "Slack", "DC time"):
-        table.add_column(column, justify="left" if column == "Config" else "right")
-    for name, run in runs.items():
-        if not run["ran"]:
-            table.add_row(name, "[red]failed[/]", "", "", "", duration(run["seconds"] or 0.0))
-            continue
-        slack = run["slack"]
-        slack_text = "-" if slack is None else f"[{'green' if slack >= 0 else 'red'}]{slack:.2f} ns[/]"
-        power = "-" if run["total_mw"] is None else f"{run['total_mw']:.4f} mW"
-        table.add_row(name, f"{run['total_area']:.1f}", f"{run['cell_area']:.1f}", power, slack_text,
-                      duration(run["seconds"]))
-    console.print(table)
 
     report = {
         **runs,
@@ -417,92 +332,7 @@ def synthesis(benchmark, exact, final, mode, max_delay, netlist, timing):
         "area_reduction_pct": reduction(runs["exact"]["total_area"], runs["final"]["total_area"]),
         "power_reduction_pct": reduction(runs["exact"]["total_mw"], runs["final"]["total_mw"]),
     }
-    for name, run in runs.items():
-        if not run["ran"]:
-            console.print(f"  [red]{name}: Design Compiler did not write an area report, see {run['folder']}/dc.log[/]")
-        elif run["slack"] is not None and run["slack"] < 0:
-            console.print(f"  [yellow]{name}: timing violated (slack {run['slack']} ns), loosen it with --max-delay[/]")
-    if report["area_reduction_pct"] is not None:
-        console.print(f"  area reduction  : [bold green]{report['area_reduction_pct']:.1f} %[/]")
-    if report["power_reduction_pct"] is not None:
-        console.print(f"  power reduction : [bold green]{report['power_reduction_pct']:.1f} %[/]")
-    console.print()
     return report
-
-
-# summary colours
-TITLE, HEADER, BORDER = "bold #d4a373", "bold #e6c9a8", "#8a7360"
-NAME, ERROR, GOOD, TIME = "#a3b18a", "#e9c46a", "#95c47a", "#c9a98a"
-
-
-def divider():
-    console.print("─" * (console.width // 2), style="grey35", justify="center")
-
-
-def summary_table(title, columns):
-    table = Table(box=box.SIMPLE_HEAVY, title=f"[{TITLE}]{title}[/]", header_style=HEADER, border_style=BORDER)
-    for i, column in enumerate(columns):
-        table.add_column(column, justify="left" if i == 0 else "right", style=NAME if i == 0 else None)
-    return table
-
-
-def render_result(args, final, estimator, synth):
-    within = final["sim_rms"] <= args.cap
-    verdict = "[green]within cap[/]" if within else "[bold red]over cap[/]"
-    console.print(f"final RMS (simulated)  : [bold]{final['sim_rms']:.3f} %[/]   cap {args.cap} %   {verdict}")
-    if final.get("model_rms") is not None:
-        console.print(f"{'final RMS (' + estimator.name + ')':<23}: {final['model_rms']:.3f} %   "
-                      f"inaccuracy {final['model_inaccuracy_pct']:.2f} %")
-    if synth and synth["area_reduction_pct"] is not None:
-        exact_run, final_run = synth["exact"], synth["final"]
-        console.print(f"area (DC)              : {final_run['total_area']:.1f} of {exact_run['total_area']:.1f}   "
-                      f"reduction [bold green]{synth['area_reduction_pct']:.1f} %[/]")
-        if synth["power_reduction_pct"] is not None:
-            console.print(f"power (DC)             : {final_run['total_mw']:.4f} of {exact_run['total_mw']:.4f} mW   "
-                          f"reduction [bold green]{synth['power_reduction_pct']:.1f} %[/]")
-    else:
-        console.print(f"library area           : {final['area']:.1f} of {final['exact_area']:.1f}   "
-                      f"saving [bold green]{final['saving_pct']:.1f} %[/]")
-    units = approximated(final["codes"], final["lib"])
-    console.print(f"approximated units     : {len(units)} of {len(final['codes'])}")
-    console.print(f"[dim]{', '.join(units) or '(none)'}[/]")
-    console.print()
-
-
-def render_summary(args, phases, final, sim, estimator, timing, synth, total_seconds):
-    render_result(args, final, estimator, synth)
-    console.rule("[bold blue]SUMMARY[/]")
-
-    table = summary_table("Search phases", ("Phase", "Cap", "Iterations", "Evaluations", "Best RMS", "Library area",
-                                            "Saving", "Time"))
-    for name, phase in phases.items():
-        table.add_row(name, f"{phase['cap']:.2f} %", str(phase["iterations"]), str(phase["evaluations"]),
-                      f"[{ERROR}]{phase['rms']:.3f} %[/]", f"{phase['area']:.1f}",
-                      f"[{GOOD}]{phase['saving_pct']:.1f} %[/]", f"[{TIME}]{duration(phase['seconds'])}[/]")
-    console.print(Align.center(table))
-    divider()
-
-    table = summary_table("Timing", ("Stage", "Time", "Share"))
-    for name, seconds in timing.items():
-        table.add_row(name, f"[{TIME}]{duration(seconds)}[/]", f"{seconds / total_seconds * 100:.1f} %")
-    table.add_section()
-    table.add_row("[bold]total[/]", f"[bold {TIME}]{duration(total_seconds)}[/]", "100.0 %")
-    console.print(Align.center(table))
-    divider()
-
-    table = summary_table("Error evaluators", ("Evaluator", "Calls", "Cache hits", "Total time", "Mean per call"))
-    for ev in (sim, estimator):
-        mean = ev.mean()
-        table.add_row(ev.name, str(ev.calls), str(ev.hits), f"[{TIME}]{duration(ev.seconds)}[/]",
-                      f"[{TIME}]{duration(mean)}[/]" if mean else "-")
-    console.print(Align.center(table))
-    if sim.mean() and estimator.mean():
-        ratio = sim.mean() / estimator.mean()
-        speed = f"[bold {GOOD}]{ratio:,.0f}× faster[/]" if ratio >= 1 else f"[bold {ERROR}]{1 / ratio:,.1f}× slower[/]"
-        console.print(f"{estimator.name} evaluation is {speed} than simulation ({duration(estimator.mean())} over "
-                      f"{estimator.calls} calls vs {duration(sim.mean())} over {sim.calls})", justify="center")
-
-    console.print(f"[{NAME}]total time[/] : [bold {TIME}]{duration(total_seconds)}[/]", justify="center")
 
 
 def main():
@@ -598,15 +428,6 @@ def main():
     timing = {}
     random.seed(args.seed)
 
-    stages = ["Setup"]
-    stages += {"sim": ["Simulation search"], "analytical": ["Analytical search", "Verification"],
-               "hybrid": ["Analytical search", "Handoff check", "Simulation search"], "eem": ["EEM search"]}[args.mode]
-    stages += ["Final simulation"] + (["Synthesis"] if args.synth else [])
-    stage_no = iter(range(1, len(stages) + 1))
-
-    def stage(name):
-        console.print(f"[bold]Stage {next(stage_no)}/{len(stages)}[/]  {name}")
-
     with Timer() as t_load:
         dfg = load_benchmark(args.benchmark)
         lib = load_library()
@@ -628,38 +449,26 @@ def main():
     estimator = eem or model
 
     adds = sum(node.op == "add" for node in dfg.nodes)
-    console.rule("[bold blue]DSE PIPELINE[/]")
-    console.print(f"  benchmark    : [cyan]{args.benchmark}[/]   ({len(dfg.nodes)} nodes: {adds} add, "
-                  f"{len(dfg.nodes) - adds} mul, M_out {m_out:,.0f})")
-    described = {"sim": "simulation only", "analytical": "analytical model only",
-                 "hybrid": "analytical search, then simulation", "eem": "EEM model only"}[args.mode]
-    console.print(f"  mode         : [cyan]{args.mode}[/]   ({described})")
-    if args.mode == "hybrid":
-        console.print(f"  cap          : [yellow]{args.cap} %[/]   margin [yellow]{args.margin} %[/]  ->  "
-                      f"analytical cap [yellow]{args.cap - args.margin:g} %[/]")
-        seeds = f" x [cyan]{args.seeds}[/] seeds"
-        console.print(f"  budget       : [cyan]{args.analytical_budget}[/] analytical{seeds} + [cyan]{args.budget}[/] "
-                      "simulation iterations")
-    elif args.mode == "analytical":
-        margin = f"   margin [yellow]{args.margin} %[/]  ->  search cap [yellow]{args.cap - args.margin:g} %[/]" if args.margin else ""
-        console.print(f"  cap          : [yellow]{args.cap} %[/]{margin}")
-        console.print(f"  budget       : [cyan]{args.budget}[/] iterations x [cyan]{args.seeds}[/] seeds")
-    else:
-        console.print(f"  cap          : [yellow]{args.cap} %[/]")
-        console.print(f"  budget       : [cyan]{args.budget}[/] iterations")
-    start_name = f"random {args.rand_start}" if args.rand_start else "all exact"
-    console.print(f"  start        : [cyan]{start_name}[/]   seed [cyan]{args.seed}[/]")
-    console.print(f"  simulation   : [cyan]{args.samples:,}[/] samples (input seed {SEED_INPUTS})")
-    console.print(f"  model        : {f'EEM ({EEM_ROOT})' if eem else source}")
+    fields = [("benchmark", args.benchmark, f"{len(dfg.nodes)} nodes ({adds} add, {len(dfg.nodes) - adds} mul)"),
+              ("mode", args.mode, ""),
+              ("cap", f"{args.cap:g} %", f"margin {args.margin:g}" if searching and args.margin else "no margin")]
+    if searching:
+        budget = args.analytical_budget if args.mode == "hybrid" else args.budget
+        fields.append(("analytical", f"{args.seeds} × {budget:,}",
+                       "seeds × iter." + (f", {min(args.seed_jobs, args.seeds)} at once" if args.seed_jobs > 1 else "")))
+    if args.mode in ("sim", "hybrid", "eem"):
+        fields.append((args.mode if args.mode == "eem" else "simulation", f"{args.budget:,}", "iterations"))
+    fields.append(("samples", f"{args.samples:,}", f"input seed {SEED_INPUTS}"))
+    fields.append(("start", f"random {args.rand_start}" if args.rand_start else "all exact", f"seed {args.seed}"))
+    fields.append(("synthesis", f"DC {args.netlist}" if args.synth else "off",
+                   (describe(synth_timing) + (" (--max-delay)" if args.max_delay is not None else "")) if args.synth else ""))
+    subtitle = {"sim": "MCTS · simulation", "analytical": "analytical model · MCTS · verified by simulation",
+                "hybrid": "analytical model · MCTS · simulation", "eem": "EEM model · MCTS · simulation"}[args.mode]
+    warnings = []
     if eem and eem.fn.different:
-        console.print(f"  [yellow]EEM implements these units differently from the simulation: {', '.join(eem.fn.different)}[/]")
-    console.print("  area         : unit area library" + (f" + Design Compiler at the end ([cyan]{args.netlist}[/] "
-                  f"netlist, {describe(synth_timing)}, "
-                  f"{'set by --max-delay' if args.max_delay is not None else 'benchmark default'})"
-                  if args.synth else " [dim](no synthesis)[/]"))
-    console.print()
+        warnings.append(f"EEM implements these units differently from the simulation: {', '.join(eem.fn.different)}")
+    ui.header(fields, subtitle, warnings)
 
-    stage("Setup")
     first = sim if args.mode == "sim" else estimator
     search_cap = args.cap - args.margin if searching else args.cap
     units = {"mild": start_units(lib, areas, 1 / 3), "medium": start_units(lib, areas, 2 / 3)}
@@ -673,20 +482,14 @@ def main():
         start = start_for(args.seed) if args.rand_start else dict(exact)
         start_rms = first(start)
     exact_area = circuit_area(exact, areas)
-    console.print(f"  load benchmark and libraries : {duration(t_load.seconds)}")
-    console.print(f"  analytical tables            : {duration(t_model.seconds)}")
-    if eem:
-        console.print(f"  EEM model and input PMFs     : {duration(t_eem.seconds)}")
-    console.print(f"  simulation inputs            : {duration(t_sim.seconds)}")
-    console.print(f"  start configuration          : {duration(t_start.seconds)}   "
-                  f"library area {circuit_area(start, areas):.1f} of {exact_area:.1f}, {first.name} RMS {start_rms:.3f} %")
     timing["setup"] = t_load.seconds + t_model.seconds + t_sim.seconds + (t_eem.seconds if eem else 0.0) + t_start.seconds
-    console.print()
+    ui.setup(timing["setup"], f"EEM ({EEM_ROOT})" if eem else source,
+             {"saving_pct": (1 - circuit_area(start, areas) / exact_area) * 100, "rms": start_rms}, first.name)
+    ui.gap_line()
 
     phases = {}
     verified = start
     if args.mode in ("analytical", "hybrid"):
-        stage("Analytical search")
         budget = args.analytical_budget if args.mode == "hybrid" else args.budget
         seeds = range(args.seed, args.seed + args.seeds)
         per_seed = start_for if args.rand_start else lambda seed: start
@@ -696,38 +499,39 @@ def main():
         timing["analytical search"] = phases["analytical"]["seconds"]
 
         name = "Handoff check" if args.mode == "hybrid" else "Verification"
-        stage(name)
         found = phases["analytical"]
+        fallback = None
         with Timer() as t_verify:
             chosen, front = verify(found["candidates"], sim, args.cap, args.verify_front)
             if chosen:
                 verified = chosen["codes"]
             elif start != exact and sim(start) <= args.cap:
-                console.print(f"  [yellow]no simulated candidate is under the cap ({args.cap} %), the start configuration is used[/]")
+                fallback = ("start", (1 - circuit_area(start, areas) / exact_area) * 100)
             else:
                 verified = exact
-                console.print(f"  [yellow]no simulated configuration is under the cap ({args.cap} %), the exact circuit is used[/]")
+                fallback = ("exact", 0.0)
         found["front"] = [{k: c.get(k) for k in ("area", "saving_pct", "rms", "sim_rms", "seed")} for c in front]
         found["chosen"] = chosen and {k: chosen.get(k) for k in ("area", "saving_pct", "rms", "sim_rms", "seed")}
         timing[name.lower()] = t_verify.seconds
-        console.print()
+        ui.verified("Hand-off check" if args.mode == "hybrid" else "Verification", t_verify.seconds,
+                    len(found["candidates"]), [c for c in found["candidates"] if c.get("sim_rms") is not None],
+                    args.cap, chosen, fallback)
 
     base = verified if args.mode == "hybrid" else start
 
     if args.mode == "eem":
-        stage("EEM search")
         phases["eem"] = search(eem, start, args.cap, args.budget, dfg, lib, areas, args.quiet)
         timing["eem search"] = phases["eem"]["seconds"]
+        ui.searched("EEM search", phases["eem"], (1 - phases["eem"]["base_area"] / exact_area) * 100)
 
     if args.mode in ("sim", "hybrid"):
-        stage("Simulation search")
         phases["simulation"] = search(sim, base, args.cap, args.budget, dfg, lib, areas, args.quiet)
         timing["simulation search"] = phases["simulation"]["seconds"]
+        ui.searched("Simulation search", phases["simulation"], (1 - phases["simulation"]["base_area"] / exact_area) * 100)
 
-    stage("Final simulation")
     final_codes = verified if args.mode == "analytical" else list(phases.values())[-1]["codes"]
     searched_rms = sim.cached(final_codes)
-    with Timer() as t_final:
+    with Timer() as t_final, ui.working(f"final simulation on {args.samples:,} samples"):
         final_rms = sim.fresh(final_codes)
     final_area = circuit_area(final_codes, areas)
     final = {"codes": final_codes, "sim_rms": final_rms, "area": final_area, "exact_area": exact_area,
@@ -736,26 +540,17 @@ def main():
         final["model"] = estimator.name
         final["model_rms"] = estimator(final_codes)
         final["model_inaccuracy_pct"] = abs(final["model_rms"] - final_rms) / final_rms * 100 if final_rms else 0.0
-    cached = ""
-    if searched_rms is not None:
-        same = abs(searched_rms - final_rms) < 1e-9
-        cached = (" [dim](same as during the search)[/]" if same
-                  else f" [yellow](search gave {searched_rms:.3f} %)[/]")
-    verdict = "[green]within cap[/]" if final_rms <= args.cap else "[bold red]over cap[/]"
-    console.print(f"  simulated RMS [bold]{final_rms:.3f} %[/] on {args.samples:,} samples   cap {args.cap} %   "
-                  f"{verdict}   {duration(t_final.seconds)}{cached}")
     timing["final simulation"] = t_final.seconds
-    console.print()
+    ui.final(final, args.cap, args.samples, t_final.seconds, searched_rms)
 
     synth = None
     if args.synth:
-        stage("Synthesis")
         with Timer() as t_synth:
             synth = synthesis(args.benchmark, exact, final_codes, args.mode, args.max_delay, args.netlist, synth_timing)
         timing["synthesis"] = t_synth.seconds
+        ui.synthesised(synth, t_synth.seconds)
 
     total_seconds = time.perf_counter() - run_start
-    render_summary(args, phases, {**final, "lib": lib}, sim, estimator, timing, synth, total_seconds)
 
     out = args.out or RESULTS / f"{args.benchmark}_{args.mode}.json"
     log = out.with_suffix(".log")
@@ -771,9 +566,9 @@ def main():
         "evaluations": {ev.name: {"calls": ev.calls, "cache_hits": ev.hits, "seconds": ev.seconds,
                                   "mean_seconds": ev.mean()} for ev in (sim, estimator)},
     }, indent=1))
-    console.print(f"\n[dim]result JSON  : {out}[/]")
-    console.print(f"[dim]terminal log : {log}[/]")
-    console.save_text(log)
+    ui.results(final, args.cap, synth, {**timing, "total": total_seconds}, {"simulation": sim, estimator.name: estimator},
+               phases, out, log)
+    ui.save(log)
 
 
 if __name__ == "__main__":
