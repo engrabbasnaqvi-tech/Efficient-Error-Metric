@@ -26,7 +26,7 @@ import json
 import random
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -261,10 +261,42 @@ def search(error_fn, base, cap, budget, dfg, lib, areas, quiet):
     return result
 
 
-def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas):
-    # one search per seed from start_for(seed); the distinct results are the handoff candidates
+def seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget):
+    # one model search from start_for(seed)
+    base = start_for(seed)
+    random.seed(seed)
+    r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn, lambda codes: circuit_area(codes, areas), cap, budget)
+    return {"seed": seed, "codes": r["codes"], "rms": r["rms"], "area": r["area"], "iterations": r["iterations"],
+            "start_area": circuit_area(base, areas)}
+
+
+worker = {}
+
+
+def init_seed_worker(benchmark, depth, level, cap):
+    # each process of --seed-jobs loads the benchmark and the model once
+    dfg = load_benchmark(benchmark)
+    lib = load_library()
+    areas = load_areas(lib)
+    model = Evaluator("analytical", analytical_error(dfg, benchmark, depth, compute_wire_max(dfg), lib)[0])
+    units = {"mild": start_units(lib, areas, 1 / 3), "medium": start_units(lib, areas, 2 / 3)}
+    exact = {node.id: EXACT[node.op] for node in dfg.nodes}
+    start_for = (lambda seed: random_start(dfg, units, level, [model], cap, seed)) if level else (lambda seed: dict(exact))
+    worker.update(dfg=dfg, moves=variants(dfg, lib, areas), areas=areas, model=model, start_for=start_for, cap=cap)
+
+
+def worker_seed_search(seed, budget):
+    w = worker
+    snap = w["model"].snapshot()
+    r = seed_search(seed, w["dfg"], w["moves"], w["areas"], w["model"], w["start_for"], w["cap"], budget)
+    return {**r, "evals": w["model"].since(snap)}
+
+
+def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas, jobs=1, worker_args=None):
+    # one search per seed from start_for(seed); the distinct results are the handoff candidates.
+    # With jobs > 1 the seeds run in that many processes, set up by init_seed_worker(*worker_args)
     console.print(f"  evaluator    : [cyan]{error_fn.name}[/]   cap [yellow]{cap:.3f} %[/]   budget [cyan]{budget}[/] "
-                  f"iterations x [cyan]{len(seeds)}[/] seeds")
+                  f"iterations x [cyan]{len(seeds)}[/] seeds" + (f" in [cyan]{jobs}[/] processes" if jobs > 1 else ""))
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
     moves = variants(dfg, lib, areas)
@@ -273,16 +305,26 @@ def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas):
         columns = (TextColumn("  {task.description}"), BarColumn(), MofNCompleteColumn(), TimeElapsedColumn())
         with Progress(*columns, console=progress_console, transient=True) as progress:
             task = progress.add_task(f"{error_fn.name} seeds", total=len(seeds))
-            for seed in seeds:
-                base = start_for(seed)
-                start_areas.append(circuit_area(base, areas))
-                random.seed(seed)
-                r = run_mcts([n.id for n in dfg.nodes], moves, base, error_fn,
-                             lambda codes: circuit_area(codes, areas), cap, budget)
+            if jobs > 1:
+                with ProcessPoolExecutor(jobs, initializer=init_seed_worker, initargs=worker_args) as pool:
+                    futures = [pool.submit(worker_seed_search, seed, budget) for seed in seeds]
+                    for future in as_completed(futures):
+                        progress.update(task, advance=1)
+                    results = [future.result() for future in futures]
+                for r in results:
+                    error_fn.calls += r["evals"]["calls"]
+                    error_fn.hits += r["evals"]["hits"]
+                    error_fn.seconds += r["evals"]["seconds"]
+            else:
+                results = []
+                for seed in seeds:
+                    results.append(seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget))
+                    progress.update(task, advance=1)
+            for r in results:
+                start_areas.append(r["start_area"])
                 iterations += r["iterations"]
                 candidates.setdefault(tuple(sorted(r["codes"].items())),
-                                      {"codes": r["codes"], "rms": r["rms"], "area": r["area"], "seed": seed})
-                progress.update(task, advance=1)
+                                      {"codes": r["codes"], "rms": r["rms"], "area": r["area"], "seed": r["seed"]})
     ranked = sorted(candidates.values(), key=lambda c: c["area"])
     for c in ranked:
         c["saving_pct"] = (1 - c["area"] / exact_area) * 100
@@ -290,17 +332,18 @@ def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas):
     best = ranked[0]
     result = {**best, "candidates": ranked, "seeds": len(seeds), "evaluator": error_fn.name, "cap": cap,
               "budget": budget, "iterations": iterations, "seconds": timer.seconds, "evaluations": evals["calls"],
-              "cache_hits": evals["hits"], "eval_seconds": evals["seconds"],
-              "search_seconds": timer.seconds - evals["seconds"]}
+              "cache_hits": evals["hits"], "eval_seconds": evals["seconds"], "jobs": jobs,
+              "search_seconds": timer.seconds - evals["seconds"] if jobs == 1 else None}
     if min(start_areas) < exact_area:
         console.print(f"     starts save {(1 - max(start_areas) / exact_area) * 100:.1f} to "
                       f"{(1 - min(start_areas) / exact_area) * 100:.1f} %")
     console.print(f"  -> {len(seeds)} seeds, {len(ranked)} distinct candidates: saving "
                   f"{ranked[-1]['saving_pct']:.1f} to {best['saving_pct']:.1f} %, model RMS "
                   f"{min(c['rms'] for c in ranked):.3f} to {max(c['rms'] for c in ranked):.3f} %")
+    split = (f"evaluation {duration(evals['seconds'])} · tree search {duration(result['search_seconds'])}" if jobs == 1
+             else f"{jobs} processes, evaluation {duration(evals['seconds'])} summed over them")
     console.print(f"     {iterations} iterations, {evals['calls']} evaluations, {evals['hits']} cache hits   "
-                  f"[bold]{duration(timer.seconds)}[/] [dim](evaluation {duration(evals['seconds'])} · "
-                  f"tree search {duration(result['search_seconds'])})[/]")
+                  f"[bold]{duration(timer.seconds)}[/] [dim]({split})[/]")
     console.print()
     return result
 
@@ -491,6 +534,8 @@ def main():
                        help="the model searches under cap - margin (default: 0 in analytical, 1 in hybrid)")
     group.add_argument("--verify-front", action="store_true",
                        help="simulate the whole Pareto front of the candidates, not only until one passes")
+    group.add_argument("--seed-jobs", type=int, default=1, metavar="N",
+                       help="analytical: run the seeds in N processes at once (default: 1, one after another)")
 
     group = parser.add_argument_group("error")
     group.add_argument("--samples", type=int, default=1_000_000, metavar="N",
@@ -528,6 +573,10 @@ def main():
         fail("--margin must be at least 0 and smaller than --cap")
     if args.seeds < 1:
         fail("--seeds must be at least 1")
+    if args.seed_jobs < 1:
+        fail("--seed-jobs must be at least 1")
+    if args.seed_jobs > 1 and args.mode != "analytical":
+        fail("--seed-jobs only applies with --mode analytical")
     if args.max_delay is not None and not args.synth:
         fail("--max-delay only applies with --synth")
     synth_timing = None
@@ -641,7 +690,9 @@ def main():
         budget = args.analytical_budget if args.mode == "hybrid" else args.budget
         seeds = range(args.seed, args.seed + args.seeds)
         per_seed = start_for if args.rand_start else lambda seed: start
-        phases["analytical"] = multi_search(model, per_seed, search_cap, budget, seeds, dfg, lib, areas)
+        jobs = min(args.seed_jobs, args.seeds)
+        phases["analytical"] = multi_search(model, per_seed, search_cap, budget, seeds, dfg, lib, areas,
+                                            jobs, (args.benchmark, args.depth, args.rand_start, search_cap))
         timing["analytical search"] = phases["analytical"]["seconds"]
 
         name = "Handoff check" if args.mode == "hybrid" else "Verification"
