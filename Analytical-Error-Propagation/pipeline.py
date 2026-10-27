@@ -192,6 +192,19 @@ def random_start(dfg, units, level, error_fns, cap, seed):
     return codes
 
 
+FIRST_SUM_BIT = {8: 2 ** 12, 9: 2 ** 14, 10: 2 ** 15}
+
+
+def range_rule(moves, dfg, lib):
+    # 0GK, 02E and 0MH only at adders whose mean exact output reaches their first real sum bit
+    exact = propagate_circuit_scalar(dfg, {node.id: EXACT[node.op] for node in dfg.nodes}, lib)
+    for node in dfg.nodes:
+        if node.op == "add":
+            level = exact[node.output]["ex"]
+            moves[node.id] = [(c, name) for c, name in moves[node.id] if level >= FIRST_SUM_BIT.get(c, 0)]
+    return moves
+
+
 def search(error_fn, base, cap, budget, dfg, lib, areas, quiet):
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
@@ -219,7 +232,7 @@ def seed_search(seed, dfg, moves, areas, error_fn, start_for, cap, budget, on_st
 worker = {}
 
 
-def init_seed_worker(benchmark, depth, level, cap):
+def init_seed_worker(benchmark, depth, level, cap, rule):
     # each process of --seed-jobs loads the benchmark and the model once
     dfg = load_benchmark(benchmark)
     lib = load_library()
@@ -228,7 +241,9 @@ def init_seed_worker(benchmark, depth, level, cap):
     units = {"mild": start_units(lib, areas, 1 / 3), "medium": start_units(lib, areas, 2 / 3)}
     exact = {node.id: EXACT[node.op] for node in dfg.nodes}
     start_for = (lambda seed: random_start(dfg, units, level, [model], cap, seed)) if level else (lambda seed: dict(exact))
-    worker.update(dfg=dfg, moves=variants(dfg, lib, areas), areas=areas, model=model, start_for=start_for, cap=cap)
+    moves = variants(dfg, lib, areas)
+    worker.update(dfg=dfg, moves=range_rule(moves, dfg, lib) if rule else moves, areas=areas, model=model,
+                  start_for=start_for, cap=cap)
 
 
 def worker_seed_search(seed, budget):
@@ -238,16 +253,18 @@ def worker_seed_search(seed, budget):
     return {**r, "evals": w["model"].since(snap)}
 
 
-def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas, jobs=1, worker_args=None):
+def multi_search(error_fn, start_for, cap, budget, seeds, dfg, lib, areas, jobs=1, worker_args=None, rule=False):
     # one search per seed from start_for(seed); the distinct results are the handoff candidates.
-    # With jobs > 1 the seeds run in that many processes, set up by init_seed_worker(*worker_args)
+    # With jobs > 1 the seeds run in that many processes, set up by init_seed_worker(*worker_args, rule)
     snap = error_fn.snapshot()
     exact_area = circuit_area({node.id: EXACT[node.op] for node in dfg.nodes}, areas)
     moves = variants(dfg, lib, areas)
+    if rule:
+        moves = range_rule(moves, dfg, lib)
     candidates, iterations, start_areas = {}, 0, []
     with Timer() as timer, ui.seeds(seeds, budget, jobs) as (step, done):
         if jobs > 1:
-            with ProcessPoolExecutor(jobs, initializer=init_seed_worker, initargs=worker_args) as pool:
+            with ProcessPoolExecutor(jobs, initializer=init_seed_worker, initargs=(*worker_args, rule)) as pool:
                 futures = {pool.submit(worker_seed_search, seed, budget): seed for seed in seeds}
                 for future in as_completed(futures):
                     done(futures[future])
@@ -366,6 +383,9 @@ def main():
                        help="simulate the whole Pareto front of the candidates, not only until one passes")
     group.add_argument("--seed-jobs", type=int, default=1, metavar="N",
                        help="analytical: run the seeds in N processes at once (default: 1, one after another)")
+    group.add_argument("--rule", action="store_true",
+                       help="analytical: allow add16u_0GK, 02E and 0MH only at adders whose mean exact output "
+                            "reaches their first real sum bit")
 
     group = parser.add_argument_group("error")
     group.add_argument("--samples", type=int, default=1_000_000, metavar="N",
@@ -407,6 +427,8 @@ def main():
         fail("--seed-jobs must be at least 1")
     if args.seed_jobs > 1 and args.mode != "analytical":
         fail("--seed-jobs only applies with --mode analytical")
+    if args.rule and args.mode != "analytical":
+        fail("--rule only applies with --mode analytical")
     if args.max_delay is not None and not args.synth:
         fail("--max-delay only applies with --synth")
     synth_timing = None
@@ -455,7 +477,8 @@ def main():
     if searching:
         budget = args.analytical_budget if args.mode == "hybrid" else args.budget
         fields.append(("analytical", f"{args.seeds} × {budget:,}",
-                       "seeds × iter." + (f", {min(args.seed_jobs, args.seeds)} at once" if args.seed_jobs > 1 else "")))
+                       "seeds × iter." + (f", {min(args.seed_jobs, args.seeds)} at once" if args.seed_jobs > 1 else "")
+                       + (", range rule" if args.rule else "")))
     if args.mode in ("sim", "hybrid", "eem"):
         fields.append((args.mode if args.mode == "eem" else "simulation", f"{args.budget:,}", "iterations"))
     fields.append(("samples", f"{args.samples:,}", f"input seed {SEED_INPUTS}"))
@@ -495,7 +518,8 @@ def main():
         per_seed = start_for if args.rand_start else lambda seed: start
         jobs = min(args.seed_jobs, args.seeds)
         phases["analytical"] = multi_search(model, per_seed, search_cap, budget, seeds, dfg, lib, areas,
-                                            jobs, (args.benchmark, args.depth, args.rand_start, search_cap))
+                                            jobs, (args.benchmark, args.depth, args.rand_start, search_cap),
+                                            rule=args.rule)
         timing["analytical search"] = phases["analytical"]["seconds"]
 
         name = "Handoff check" if args.mode == "hybrid" else "Verification"
